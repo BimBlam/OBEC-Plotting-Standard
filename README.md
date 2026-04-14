@@ -1,0 +1,342 @@
+# batteryplot
+
+**Battery test data plotting and analysis toolkit**
+
+`batteryplot` reads CSV files produced by battery cyclers (Arbin, Neware, Maccor, and similar), automatically maps column names to canonical quantities, generates publication-quality SVG/PDF vector plots, and exports a cleaned multi-sheet Excel workbook — one output folder per cell.
+
+---
+
+## Feature summary
+
+- **Robust CSV parsing** — handles metadata rows before the real header, messy spacing, inconsistent column names, and the `Xd HH:MM:SS` time format used by Arbin exporters.
+- **Alias matching** — 25 canonical quantity names with ~130 aliases covering common cycler export variants. Unknown columns are ignored gracefully.
+- **13 plot types across 6 families** — voltage profiles, cycle summary, rate capability, pulse/DCIR, Ragone, and QA. Every expected plot slot is always filled: either a real figure or a clearly labelled "Data Absent" placeholder SVG.
+- **Vector output** — SVG required; PDF optional. All SVGs use real text (not outlines) so they are editable in Inkscape, Illustrator, and similar tools.
+- **Excel export** — 7-sheet workbook per cell: raw column map, metadata, cleaned time-series, cycle summary, pulse events, derived metrics, plot availability.
+- **Windows-first** — no admin rights needed. Double-clickable `.bat` launchers, everything inside a local virtual environment.
+- **CLI** — five commands: `run`, `inspect`, `init-config`, `list-plots`, `validate`.
+- **Configurable** — YAML config file with CLI overrides for paths, cell parameters, plot selection, and styling.
+
+---
+
+## Supported input assumptions
+
+`batteryplot` expects one CSV file per cell. The file may contain:
+
+- **0–N metadata rows** before the real data header (e.g. `Today's Date, 4/14/2026`). These are automatically detected and extracted.
+- **A single header row** whose columns can be mapped to known battery measurement quantities.
+- **Data rows** beginning immediately after the header.
+
+Confirmed working format: **Arbin WBCS-style CSV export** (the sample dataset). The parser will also attempt to handle Neware, Maccor, and other common formats through the alias table. If a column is unrecognised it is logged and ignored; parsing continues.
+
+Column mapping is case-insensitive and whitespace-tolerant. `Current (A)`, `current(A)`, `Cur (A)` all map to `current_a`.
+
+---
+
+## Quick Windows setup
+
+### Prerequisites
+
+- Python 3.11 or later — download from [python.org](https://python.org). During installation, **check "Add Python to PATH"**.
+- No other system-level dependencies. No admin rights needed.
+
+### One-time setup
+
+```
+1. Download or clone this repository to any folder, e.g. C:\Users\You\batteryplot
+2. Double-click  setup_windows.bat
+   (or run it from a Command Prompt window)
+```
+
+`setup_windows.bat` creates a `.venv` virtual environment inside the repo folder and installs all dependencies from `requirements.txt`. It then writes a default `config.yaml`.
+
+### Running
+
+```batch
+REM Process all CSV files in the input/ folder:
+run_windows.bat run
+
+REM Specify a different input folder:
+run_windows.bat run --input-dir "C:\Data\BatteryTests"
+
+REM Inspect a single file without generating plots:
+run_windows.bat inspect "C:\Data\BatteryTests\cell_001.csv"
+
+REM Validate all files and report column mapping:
+run_windows.bat validate --input-dir "C:\Data\BatteryTests"
+```
+
+You can also open a Command Prompt, activate the virtual environment, and use `batteryplot` directly:
+
+```batch
+.venv\Scripts\activate
+batteryplot run --input-dir input --output-dir output
+batteryplot list-plots
+batteryplot init-config
+```
+
+---
+
+## Cross-platform setup (Linux / macOS)
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+# or: pip install -e .
+batteryplot run
+```
+
+---
+
+## Command reference
+
+| Command | Description |
+|---|---|
+| `batteryplot run` | Process all CSV files in `input_dir` |
+| `batteryplot run --input-dir PATH` | Override input directory |
+| `batteryplot run --output-dir PATH` | Override output directory |
+| `batteryplot run --files a.csv b.csv` | Process specific files only |
+| `batteryplot inspect FILE` | Parse and report column mapping; no plots |
+| `batteryplot init-config` | Write `config.yaml` to current directory |
+| `batteryplot list-plots` | Show all 13 plot types with required columns |
+| `batteryplot validate` | Check column mapping for every CSV in input_dir |
+
+---
+
+## Configuration
+
+Run `batteryplot init-config` to generate `config.yaml`. The full schema:
+
+```yaml
+# Directories
+input_dir: input       # folder containing CSV files
+output_dir: output     # folder where results are written
+
+# Cell parameters (optional — enable derived quantities)
+# nominal_capacity_ah: 0.003     # enables C-rate calculation
+# active_mass_g: 0.019           # enables gravimetric normalisation (mAh/g, Wh/g, W/g)
+# electrode_area_cm2: 1.13       # enables current density (mA/cm²)
+# density_g_cm3: 2.7             # enables volumetric Ragone (Wh/L, W/L)
+
+# Plot selection
+representative_cycles: null     # [1, 25, 50] or null = auto (first/mid/last)
+selected_plot_families:
+  - voltage_profiles
+  - cycle_summary
+  - rate_capability
+  - pulse_resistance
+  - ragone
+  - qa
+
+# Output
+output_formats: [svg, pdf]
+overwrite: true
+
+# Styling: publication | dark
+theme: publication
+
+# Parser tuning
+header_search_rows: 10
+min_numeric_fraction: 0.5
+
+# Logging: DEBUG | INFO | WARNING | ERROR
+log_level: INFO
+```
+
+### Cell parameter effect on plots
+
+| Parameter | Effect |
+|---|---|
+| `nominal_capacity_ah` | Rate capability x-axis becomes C-rate instead of |I| (A) |
+| `active_mass_g` | Ragone plot uses gravimetric axes (Wh/g, W/g); `specific_capacity_mah_g` computed |
+| `electrode_area_cm2` | DCIR vs. current density plot uses mA/cm² x-axis |
+| `density_g_cm3` + `active_mass_g` | Volumetric Ragone axes added (Wh/L, W/L) |
+
+---
+
+## Output directory structure
+
+```
+output/
+  sample_cell_001/
+    plots/
+      voltage_vs_capacity.svg        ← charge/discharge voltage profiles
+      voltage_vs_capacity.pdf
+      voltage_vs_time.svg            ← full-test voltage and current overview
+      capacity_retention.svg         ← discharge capacity vs cycle number
+      coulombic_efficiency.svg       ← CE (and energy efficiency if available)
+      dcir_vs_cycle.svg              ← mean DCIR per cycle
+      rate_capability.svg            ← capacity vs C-rate or current
+      rate_voltage_profiles.svg      ← voltage curves at different rates
+      dcir_vs_current.svg            ← DCIR vs applied current / density
+      pulse_analysis.svg             ← pulse decomposition (if pulses detected)
+      ragone.svg                     ← energy vs power
+      temperature_vs_time.svg        ← temperature (and humidity) over test
+      current_voltage_overview.svg   ← QA overview of full test
+      data_availability.svg          ← column completeness summary
+    data/
+      processed_data.xlsx            ← 7-sheet Excel workbook
+      cleaned_timeseries.csv         ← canonical-column CSV
+      cycle_summary.csv              ← one row per cycle
+    logs/
+      processing.log                 ← per-file log
+  batch_summary.csv                  ← top-level batch report
+  batch_summary.xlsx
+```
+
+---
+
+## Placeholder plots
+
+Every expected plot is always written — as a real figure **or** as a placeholder SVG. A placeholder is a vector figure containing:
+
+- The intended plot title
+- **"Data Absent"** in red
+- A list of the missing required columns
+- An optional note explaining any derivation failure
+
+This ensures every cell folder has a predictable, consistent set of output files regardless of what the CSV contained. Placeholders are valid SVGs editable in any vector graphics tool.
+
+Example: if `dcir_ohm` column is absent, `dcir_vs_current.svg` will exist but will be a placeholder listing `dcir_ohm` as the missing column.
+
+---
+
+## Scientific assumptions and limitations
+
+### What is directly measured vs. estimated
+
+| Quantity | Status | Notes |
+|---|---|---|
+| `voltage_v`, `current_a`, `capacity_ah`, `energy_wh` | **Measured** | Taken directly from cycler columns |
+| `dcir_ohm` (from DCIR column) | **Measured** | Cycler-computed DC internal resistance; labeled "Measured DCIR" in plots |
+| Estimated DCIR from ΔV/I | **Estimated** | Derived from pulse segments; labeled "Estimated DCIR (ΔV/I)"; less accurate |
+| C-rate | **Derived** | Requires `nominal_capacity_ah` in config; otherwise |I| (A) is used |
+| Specific capacity (mAh/g) | **Derived** | Requires `active_mass_g` in config |
+| Ragone power axis | **Approximated** | Power ≈ energy / discharge_time; discharge_time = capacity / mean_current. Not constant-power data. Labeled accordingly. |
+| Volumetric quantities | **Derived** | Require both `active_mass_g` and `density_g_cm3` |
+
+### Charge/discharge detection
+
+Current sign convention: positive = charge, negative = discharge. If a `step_type` / `MD` column exists with labels (C, D, R or similar), those labels are used preferentially. The threshold for "rest" is |I| < 1×10⁻⁴ A by default.
+
+### Pulse detection
+
+A segment is classified as a pulse if: `step_time_s` < 200 s AND |current| > 0.01 A AND followed by a rest period. At least 3 pulse events are required to generate the pulse analysis plot. The immediate voltage drop ΔV₀ at pulse onset approximates ohmic resistance only; longer-term relaxation approximates kinetic contributions. This is an approximation and does not replace EIS.
+
+### Ragone plot
+
+The Ragone plot approximates energy–power from constant-current cycling data. True Ragone analysis requires constant-power discharge, which most cycler data does not provide. The approximation is valid for comparing cycles within the same cell but should not be directly compared to literature Ragone plots derived from constant-power data without care.
+
+### Things the tool never does
+
+- Never fabricates physical constants.
+- Never assigns C-rate labels without `nominal_capacity_ah`.
+- Never generates volumetric axes without both `active_mass_g` and `density_g_cm3`.
+- Never silently omits an expected figure — always writes a placeholder.
+- Never overclaims interpretation of unknown columns; conservative matching is logged.
+
+---
+
+## Troubleshooting messy CSV files
+
+**"No cycles detected"** — The cycle counter column may be all-zero (common in partial exports or OCV-only files). The tool will still process the data as cycle 0. Supply `nominal_capacity_ah` and verify the file contains charge and discharge steps.
+
+**"Header detected at wrong row"** — Increase `header_search_rows` in config (default 10). You can also run `batteryplot inspect yourfile.csv` to see exactly what header row was detected and which columns mapped.
+
+**"Column X not mapped"** — Run `batteryplot inspect yourfile.csv` to list all raw column names. Then check if an alias exists in `src/batteryplot/aliases.py`. You can add aliases to the `ALIAS_TABLE` dict following the existing pattern.
+
+**"Plots are all placeholders"** — The CSV may contain only metadata rows, or all measurement columns may be zero (rest-only segment). Inspect the file and verify it contains charge/discharge data.
+
+**"Excel file not written"** — Check the `logs/processing.log` inside the cell output folder for the exact error. Common cause: file is open in Excel already (Windows file lock).
+
+**"SVG text looks wrong"** — The SVG uses `svg.fonttype = 'none'` so text is embedded as real text nodes, not outlines. If your viewer shows boxes, install Arial or DejaVu Sans fonts, or open in a browser which will substitute gracefully.
+
+**"Python not found" on Windows** — Re-run the Python installer and check "Add Python to PATH", or use the full path: `C:\Users\You\AppData\Local\Programs\Python\Python311\python.exe`.
+
+---
+
+## Canonical column names reference
+
+| Canonical name | Typical raw name | Units |
+|---|---|---|
+| `elapsed_time_s` | Test Time, Elapsed Time | s |
+| `step_time_s` | Step Time | s |
+| `cycle_index` | Cycle P, Cycle, Cycle Number | — |
+| `step_index` | Cycle C, Step | — |
+| `step_type` | MD, Mode, Step Type | string |
+| `current_a` | Current (A), Cur (A) | A |
+| `voltage_v` | Voltage (V), Volt (V) | V |
+| `capacity_ah` | Capacity (AHr), Cap (AH) | Ah |
+| `energy_wh` | Energy (WHr), Energy (Wh) | Wh |
+| `power_w` | Power (W) | W |
+| `ac_impedance_ohm` | AC Imp (Ohms), ESR | Ω |
+| `dcir_ohm` | DCIR (Ohms) | Ω |
+| `resistance_ohm` | Resistance | Ω |
+| `conductivity_s_cm` | Conductivity | S/cm |
+| `temperature_c` | EVTemp (C), Temp (C) | °C |
+| `humidity_pct` | EVHum (%), Hum (%) | % |
+| `specific_capacity_ah_g` | S.Capacity (Ah/g) | Ah/g |
+| `charge_capacity_ah` | WF Chg Cap | Ah |
+| `discharge_capacity_ah` | WF Dis Cap | Ah |
+| `charge_energy_wh` | WF Chg E | Wh |
+| `discharge_energy_wh` | WF Dis E | Wh |
+| `timestamp_dt` | DPT Time, DateTime | datetime |
+| `record_index` | Rec, Record | — |
+| `loop_index` | Loop1, Loop 1 | — |
+
+---
+
+## Architecture overview
+
+```
+src/batteryplot/
+  cli.py           — typer CLI (5 commands)
+  config.py        — pydantic v2 BatteryPlotConfig + YAML/TOML loader
+  aliases.py       — ALIAS_TABLE, normalize_header, match_column, map_columns
+  parsing.py       — detect_header_row, parse_time_column, load_csv, build_analysis_df
+  transforms.py    — label_charge_discharge, compute_cycle_summary, detect_pulse_segments,
+                     compute_ragone_points, compute_crate, compute_specific_capacity
+  summaries.py     — build_full_summary, build_plot_availability
+  styles.py        — Wong colorblind palette, rcParams, save_figure
+  placeholders.py  — make_placeholder (vector "Data Absent" SVG)
+  excel_export.py  — export_excel (7-sheet openpyxl workbook)
+  io.py            — discover_csv_files, process_cell, run_batch
+  plots/
+    registry.py           — PlotSpec dataclass, PLOT_REGISTRY (13 entries)
+    voltage_profiles.py   — plot_voltage_vs_capacity, plot_voltage_vs_time
+    cycle_summary.py      — plot_capacity_retention, plot_coulombic_efficiency, plot_dcir_vs_cycle
+    rate_capability.py    — plot_rate_capability, plot_rate_voltage_profiles
+    pulse_resistance.py   — plot_dcir_vs_current, plot_pulse_analysis
+    ragone.py             — plot_ragone
+    qa.py                 — plot_temperature_vs_time, plot_current_voltage_overview,
+                            plot_data_availability
+  utils/
+    paths.py        — sanitize_stem, ensure_dir, cell_output_dir
+    logging_utils.py — setup_logging
+    validation.py   — validate_dataframe, validate_config
+```
+
+Data flow: `io.py` orchestrates everything. For each cell: `parsing.py` loads and cleans → `transforms.py` derives quantities → `plots/*` generate figures or placeholders → `excel_export.py` writes the workbook → `io.py` writes the batch summary.
+
+---
+
+## Development
+
+```bash
+# Install in editable mode with test dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v
+
+# Add new column aliases: edit src/batteryplot/aliases.py → ALIAS_TABLE
+# Add a new plot type: add PlotSpec to plots/registry.py, implement function in plots/
+```
+
+---
+
+## License
+
+MIT
+# OBEC-Plotting-Standard
