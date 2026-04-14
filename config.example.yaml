@@ -1,0 +1,38 @@
+# BatteryPlot configuration file
+# Copy this file to config.yaml and edit as needed.
+
+# --- Directories ---
+input_dir: input          # Folder containing CSV files (one per cell)
+output_dir: output        # Folder where results will be written
+
+# --- Cell parameters (optional but recommended) ---
+# nominal_capacity_ah: 0.003    # Nominal cell capacity in Ah (enables C-rate calculation)
+# active_mass_g: 0.019          # Active electrode mass in grams (enables gravimetric normalization)
+# electrode_area_cm2: 1.13      # Electrode area in cm² (enables current density calculation)
+# density_g_cm3: 2.7            # Electrode density in g/cm³ (enables volumetric Ragone)
+
+# --- Plot selection ---
+representative_cycles: null   # [1, 25, 50] or null for auto (first, middle, last)
+selected_plot_families:
+  - voltage_profiles
+  - cycle_summary
+  - rate_capability
+  - pulse_resistance
+  - ragone
+  - qa
+
+# --- Output ---
+output_formats:
+  - svg
+  - pdf
+overwrite: true
+
+# --- Styling ---
+theme: publication   # publication | dark
+
+# --- Parsing ---
+header_search_rows: 10     # Scan this many rows to find the real data header
+min_numeric_fraction: 0.5  # Fraction of columns that must be numeric in a data row
+
+# --- Logging ---
+log_level: INFO
