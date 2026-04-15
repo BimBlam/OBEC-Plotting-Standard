@@ -1,3 +1,20 @@
+Metadata-Version: 2.4
+Name: batteryplot
+Version: 0.1.0
+Summary: Battery test data plotting and analysis toolkit
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.0
+Requires-Dist: numpy>=1.24
+Requires-Dist: scipy>=1.10
+Requires-Dist: matplotlib>=3.7
+Requires-Dist: openpyxl>=3.1
+Requires-Dist: typer[all]>=0.9
+Requires-Dist: pydantic>=2.0
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: rich>=13.0
+
 # batteryplot
 
 **Battery test data plotting and analysis toolkit**

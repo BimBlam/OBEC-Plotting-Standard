@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="409.024687pt" height="209.99952pt" viewBox="0 0 409.024687 209.99952" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-04-15T15:27:54.285842</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.8, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 209.99952 
+L 409.024687 209.99952 
+L 409.024687 -0 
+L 0 -0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 182.575172 200.843525 
+L 226.449515 200.843525 
+Q 227.383012 200.843525 227.383012 196.931534 
+L 227.383012 13.067986 
+Q 227.383012 9.155995 226.449515 9.155995 
+L 182.575172 9.155995 
+Q 181.641676 9.155995 181.641676 13.067986 
+L 181.641676 196.931534 
+Q 181.641676 200.843525 182.575172 200.843525 
+z
+" clip-path="url(#p2e1d8a76a9)" style="fill: #fafafa; stroke: #cccccc; stroke-width: 0.8; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'Arial', 'DejaVu Sans', 'Helvetica', 'Liberation Sans', sans-serif; text-anchor: middle" x="204.512344" y="29.686555" transform="rotate(-0 204.512344 29.686555)">Pulse Resistance Decomposition</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'Arial', 'DejaVu Sans', 'Helvetica', 'Liberation Sans', sans-serif; text-anchor: middle; fill: #cc4444" x="204.512344" y="70.326147" transform="rotate(-0 204.512344 70.326147)">Data Absent</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #666666" x="204.512344" y="100.575878" transform="rotate(-0 204.512344 100.575878)">Required columns not found in this file.</text>
+   </g>
+   <g id="text_4">
+    <text style="font-style: italic; font-size: 6px; font-family: 'Arial', 'DejaVu Sans', 'Helvetica', 'Liberation Sans', sans-serif; text-anchor: middle; fill: #888888" x="204.512344" y="177.91289" transform="rotate(-0 204.512344 177.91289)">Note: Only 0 valid pulse event(s) found (need &gt;= 3). Check that short constant-current pulses (|I| &gt; 0.01 A, t &lt; 200 s) are present.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p2e1d8a76a9">
+   <rect x="181.174927" y="7.2" width="46.674833" height="195.59952"/>
+  </clipPath>
+ </defs>
+</svg>

@@ -1,0 +1,5 @@
+cell_name,n_cycles,n_data_points,plots_generated,plots_placeholder,excel_path,log_path,warnings,status
+P37_10L_N-Al_Formation_-_062,2,12894,3,10,dataProc/output/P37_10L_N-Al_Formation_-_062/data/P37_10L_N-Al_Formation_-_062.xlsx,dataProc/output/P37_10L_N-Al_Formation_-_062/logs/P37_10L_N-Al_Formation_-_062_processing.log,,ok
+P38_10L_N-Al_Formation_-_063,4,11973,3,10,dataProc/output/P38_10L_N-Al_Formation_-_063/data/P38_10L_N-Al_Formation_-_063.xlsx,dataProc/output/P38_10L_N-Al_Formation_-_063/logs/P38_10L_N-Al_Formation_-_063_processing.log,,ok
+P39_8L_N-Al_Formation_-_060,4,12430,3,10,dataProc/output/P39_8L_N-Al_Formation_-_060/data/P39_8L_N-Al_Formation_-_060.xlsx,dataProc/output/P39_8L_N-Al_Formation_-_060/logs/P39_8L_N-Al_Formation_-_060_processing.log,,ok
+sample_data,1,47,3,10,dataProc/output/sample_data/data/sample_data.xlsx,dataProc/output/sample_data/logs/sample_data_processing.log,,ok

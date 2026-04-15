@@ -1,0 +1,5 @@
+cycle_index,charge_capacity_ah,discharge_capacity_ah,charge_energy_wh,discharge_energy_wh,coulombic_efficiency_pct,energy_efficiency_pct,mean_dcir_ohm,mean_ac_impedance_ohm,mean_temperature_c,capacity_retention_pct
+0,0.111,0.001,0.396,0.002,0.9009009009009009,0.505050505050505,0.0,0.0,0.0,
+1,0.001,,0.003,0.001,,33.33333333333333,0.0,0.0,0.0,
+2,0.001,,0.002,0.001,,50.0,0.0,0.0,0.0,
+3,,,,,,,0.0,0.0,0.0,

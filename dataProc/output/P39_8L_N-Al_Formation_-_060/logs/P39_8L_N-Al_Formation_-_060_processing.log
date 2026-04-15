@@ -1,0 +1,23 @@
+2026-04-15 15:28:02 | INFO     | batteryplot | ============================================================
+2026-04-15 15:28:02 | INFO     | batteryplot | Processing cell: P39_8L_N-Al_Formation_-_060  (/home/addyd/Projects/OBEC/dataProc/P39 8L N-Al Formation - 060.csv)
+2026-04-15 15:28:02 | INFO     | batteryplot | ============================================================
+2026-04-15 15:28:02 | INFO     | batteryplot | Loading CSV: /home/addyd/Projects/OBEC/dataProc/P39 8L N-Al Formation - 060.csv
+2026-04-15 15:28:02 | INFO     | batteryplot | Header row detected at line 2 (0-indexed). 147 columns found.
+2026-04-15 15:28:02 | INFO     | batteryplot | Header row at line 2; 147 columns detected.
+2026-04-15 15:28:02 | WARNING  | batteryplot | Duplicate canonical mapping: raw column 'Step' (normalised: 'step') resolves to 'step_index', but this canonical name was already claimed by raw column 'Cycle C'.  Keeping the first occurrence.
+2026-04-15 15:28:02 | WARNING  | batteryplot | Duplicate canonical mapping: raw column 'ESR' (normalised: 'esr') resolves to 'ac_impedance_ohm', but this canonical name was already claimed by raw column 'AC Imp (Ohms)'.  Keeping the first occurrence.
+2026-04-15 15:28:02 | INFO     | batteryplot | Column mapping: 24 matched, 121 unmatched out of 147 total.
+2026-04-15 15:28:02 | INFO     | batteryplot | 24 columns mapped, 123 unmapped (out of 147).
+2026-04-15 15:28:02 | INFO     | batteryplot | Analysis DataFrame: 12430 rows × 24 canonical columns.
+2026-04-15 15:28:02 | INFO     | batteryplot | Segment labelling: using step_type column for 12429 / 12430 rows.
+2026-04-15 15:28:02 | INFO     | batteryplot | Segment counts: {'rest': 8673, 'charge': 3751, 'discharge': 6}
+2026-04-15 15:28:02 | INFO     | batteryplot | Cycle summary computed: 4 cycles, columns: ['cycle_index', 'charge_capacity_ah', 'discharge_capacity_ah', 'charge_energy_wh', 'discharge_energy_wh', 'coulombic_efficiency_pct', 'energy_efficiency_pct', 'mean_dcir_ohm', 'mean_ac_impedance_ohm', 'mean_temperature_c', 'capacity_retention_pct']
+2026-04-15 15:28:02 | INFO     | batteryplot | Detected 0 pulse segments.
+2026-04-15 15:28:02 | INFO     | batteryplot | Plot availability: 12 / 15 plots available.
+2026-04-15 15:28:03 | WARNING  | batteryplot.plots.voltage_profiles | Cycle 3 has fewer than 2 data points — skipping.
+2026-04-15 15:28:04 | WARNING  | batteryplot.plots.cycle_summary | plot_coulombic_efficiency: missing columns ['coulombic_efficiency'] — placeholder
+2026-04-15 15:28:07 | INFO     | batteryplot | Exporting Excel workbook: dataProc/output/P39_8L_N-Al_Formation_-_060/data/P39_8L_N-Al_Formation_-_060.xlsx
+2026-04-15 15:28:13 | INFO     | batteryplot | Excel workbook written: dataProc/output/P39_8L_N-Al_Formation_-_060/data/P39_8L_N-Al_Formation_-_060.xlsx (sheets: column_map, metadata, cleaned_timeseries, cycle_summary, [no] pulse_events, derived_metrics, plot_availability)
+2026-04-15 15:28:13 | INFO     | batteryplot | Saved cleaned_timeseries.csv (12430 rows)
+2026-04-15 15:28:13 | INFO     | batteryplot | Saved cycle_summary.csv (4 cycles)
+2026-04-15 15:28:13 | INFO     | batteryplot | Cell P39_8L_N-Al_Formation_-_060: 4 cycles, 12430 data points, 3 real plots, 10 placeholders.
