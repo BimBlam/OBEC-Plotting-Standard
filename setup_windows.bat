@@ -26,6 +26,7 @@ python -m venv "%VENV_DIR%"
 echo Installing batteryplot and dependencies...
 "%VENV_DIR%\Scripts\pip.exe" install --upgrade pip
 "%VENV_DIR%\Scripts\pip.exe" install -r "%SCRIPT_DIR%requirements.txt"
+"%VENV_DIR%\Scripts\pip.exe" install "%SCRIPT_DIR%."
 
 echo.
 echo Initializing default config...

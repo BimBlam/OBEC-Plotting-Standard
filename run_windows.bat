@@ -28,6 +28,12 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
         pause
         exit /b 1
     )
+    "%VENV_DIR%\Scripts\pip.exe" install "%SCRIPT_DIR%."
+    if errorlevel 1 (
+        echo ERROR: Failed to install batteryplot package.
+        pause
+        exit /b 1
+    )
     echo.
     echo Setup complete!
 )
