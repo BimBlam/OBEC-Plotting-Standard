@@ -38,8 +38,13 @@ from batteryplot.styles import (
     SINGLE_COL_WIDTH_IN,
     DEFAULT_HEIGHT_IN,
     save_figure,
+    add_assumption_warning,
 )
-from batteryplot.placeholders import make_placeholder
+from batteryplot.placeholders import (
+    make_placeholder,
+    diagnose_columns,
+    ColumnDiagnostic,
+)
 
 logger = logging.getLogger("batteryplot.plots.ragone")
 
@@ -101,12 +106,18 @@ def plot_ragone(
     missing = _check_columns(cycle_summary, required_cs)
     if missing:
         logger.warning("plot_ragone: missing cycle_summary columns %s", missing)
+        diag = diagnose_columns(cycle_summary, required_cs,
+                                optional=["charge_energy_wh", "charge_capacity_ah"])
+        diag.note = ("Ragone power: P approx E/t_discharge (approximation). "
+                     "Gravimetric axes need active_mass_g in config. "
+                     "Minimum 3 cycles with valid energy + capacity data required.")
         return make_placeholder(
             title="Energy\u2013Power (Ragone) Plot",
             missing_columns=missing,
             output_dir=output_dir,
             stem="ragone",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     cs = cycle_summary.copy()
@@ -114,13 +125,15 @@ def plot_ragone(
     cs = cs[(cs["discharge_energy_wh"] > 0) & (cs["discharge_capacity_ah"] > 0)]
 
     if len(cs) < 3:
+        diag2 = diagnose_columns(cycle_summary, required_cs, optional=["charge_energy_wh"])
+        diag2.note = f"Only {len(cs)} cycle(s) with valid energy + capacity data (need >= 3)."
         return make_placeholder(
             title="Energy\u2013Power (Ragone) Plot",
             missing_columns=[],
             output_dir=output_dir,
             stem="ragone",
             formats=_get_formats(config),
-            note=f"Only {len(cs)} cycle(s) with valid energy + capacity data (need >= 3).",
+            diagnostic=diag2,
         )
 
     mean_i = _mean_discharge_i_per_cycle(df)
@@ -150,13 +163,15 @@ def plot_ragone(
     cs = cs[cs["power_w"] > 0]
 
     if len(cs) < 3:
+        diag3 = diagnose_columns(cycle_summary, required_cs)
+        diag3.note = "Fewer than 3 cycles remained after computing power. Check current data."
         return make_placeholder(
             title="Energy\u2013Power (Ragone) Plot",
             missing_columns=[],
             output_dir=output_dir,
             stem="ragone",
             formats=_get_formats(config),
-            note="Fewer than 3 cycles remained after computing power. Check current data.",
+            diagnostic=diag3,
         )
 
     active_mass_g = getattr(config, "active_mass_g", None)
@@ -234,4 +249,13 @@ def plot_ragone(
                 transform=ax.transAxes, fontsize=5.5, color=WONG_PALETTE[1],
                 ha="left", va="top")
 
+    _rag_warnings: list[str] = []
+    if getattr(config, "active_mass_g", None) is None:
+        _rag_warnings.append(
+            "active_mass_g not set: axes show absolute Wh and W, not gravimetric"
+        )
+    _rag_warnings.append(
+        "Power axis is approximate (P ≈ E/t_discharge); not constant-power data"
+    )
+    add_assumption_warning(fig, _rag_warnings)
     return save_figure(fig, output_dir, "ragone", formats=_get_formats(config))

@@ -48,8 +48,13 @@ from batteryplot.styles import (
     SINGLE_COL_WIDTH_IN,
     DEFAULT_HEIGHT_IN,
     save_figure,
+    add_assumption_warning,
 )
-from batteryplot.placeholders import make_placeholder
+from batteryplot.placeholders import (
+    make_placeholder,
+    diagnose_columns,
+    ColumnDiagnostic,
+)
 
 logger = logging.getLogger("batteryplot.plots.pulse_resistance")
 
@@ -108,12 +113,17 @@ def plot_dcir_vs_current(
     missing = _check_columns(df, required)
     if missing:
         logger.warning("plot_dcir_vs_current: missing df columns %s", missing)
+        diag = diagnose_columns(df, required, optional=["current_a", "cycle_index"])
+        diag.note = ("DCIR (Ohms) must be present and non-zero. "
+                     "If all-zero, the cycler did not perform a pulse measurement. "
+                     "Current density axis requires electrode_area_cm2 in config.")
         return make_placeholder(
             title="DCIR vs. Current Density",
             missing_columns=missing,
             output_dir=output_dir,
             stem="dcir_vs_current",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     plot_df = df[df["dcir_ohm"].notna() & (df["dcir_ohm"] != 0)].copy()
@@ -183,6 +193,12 @@ def plot_dcir_vs_current(
     ax.set_title("DCIR vs. Current Density")
     ax.legend(fontsize=7, loc="best")
 
+    _dcir_warnings: list[str] = []
+    if getattr(config, "electrode_area_cm2", None) is None:
+        _dcir_warnings.append(
+            "electrode_area_cm2 not set: x-axis shows |current| (A), not current density"
+        )
+    add_assumption_warning(fig, _dcir_warnings)
     return save_figure(fig, output_dir, "dcir_vs_current", formats=_get_formats(config))
 
 
@@ -235,12 +251,17 @@ def plot_pulse_analysis(
     missing = _check_columns(df, required_ts)
     if missing:
         logger.warning("plot_pulse_analysis: missing df columns %s", missing)
+        diag = diagnose_columns(df, required,
+                                optional=["dcir_ohm", "step_time_s", "step_index"])
+        diag.note = ("Pulse detection: step_time_s < 200 s and |current| > 0.01 A "
+                     "followed by a rest. Minimum 3 pulses required.")
         return make_placeholder(
             title="Pulse Resistance Decomposition",
             missing_columns=missing,
             output_dir=output_dir,
             stem="pulse_analysis",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     pulse_records = []

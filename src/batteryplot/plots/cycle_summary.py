@@ -13,12 +13,12 @@ Scientific assumptions
       discharge_capacity_ah / nominal_capacity_ah x 100
   and is expected to already exist in cycle_summary; if absent, it is computed
   here only if config.nominal_capacity_ah is set (non-None and > 0).
-- coulombic_efficiency is defined as:
+- coulombic_efficiency_pct is defined as:
       discharge_capacity_ah / charge_capacity_ah x 100  [%]
   A horizontal reference line is drawn at 100 %.
-- energy_efficiency is defined as:
+- energy_efficiency_pct is defined as:
       discharge_energy_wh / charge_energy_wh x 100  [%]
-  (column name "energy_efficiency" if present in cycle_summary).
+  (column name "energy_efficiency_pct" if present in cycle_summary).
 - DCIR (mean_dcir_ohm) is the per-cycle average of the cycler-measured DC
   internal resistance.  AC impedance (mean_ac_impedance_ohm) typically
   represents the real part of impedance at a fixed frequency (e.g. 1 kHz).
@@ -40,8 +40,13 @@ from batteryplot.styles import (
     SINGLE_COL_WIDTH_IN,
     DEFAULT_HEIGHT_IN,
     save_figure,
+    add_assumption_warning,
 )
-from batteryplot.placeholders import make_placeholder
+from batteryplot.placeholders import (
+    make_placeholder,
+    diagnose_columns,
+    ColumnDiagnostic,
+)
 
 logger = logging.getLogger("batteryplot.plots.cycle_summary")
 
@@ -96,12 +101,17 @@ def plot_capacity_retention(
     missing = _check_columns(cycle_summary, required)
     if missing:
         logger.warning("plot_capacity_retention: missing columns %s — placeholder", missing)
+        diag = diagnose_columns(cycle_summary, required,
+                                optional=["charge_capacity_ah", "capacity_retention_pct"])
+        diag.note = ("capacity_retention_pct requires nominal_capacity_ah in config. "
+                     "coulombic_efficiency requires both charge and discharge columns.")
         return make_placeholder(
             title="Capacity Retention vs. Cycle Number",
             missing_columns=missing,
             output_dir=output_dir,
             stem="capacity_retention",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     cs = cycle_summary.sort_values("cycle_index").copy()
@@ -149,6 +159,13 @@ def plot_capacity_retention(
     else:
         ax.legend(fontsize=7, loc="best")
 
+    _cr_warnings: list[str] = []
+    if has_retention and getattr(config, "nominal_capacity_ah", None) is None:
+        _cr_warnings.append(
+            "nominal_capacity_ah not set — retention % computed from first-cycle "
+            "discharge capacity (relative, not absolute)"
+        )
+    add_assumption_warning(fig, _cr_warnings)
     return save_figure(fig, output_dir, "capacity_retention", formats=_get_formats(config))
 
 
@@ -187,40 +204,46 @@ def plot_coulombic_efficiency(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    required = ["cycle_index", "coulombic_efficiency"]
+    required = ["cycle_index", "coulombic_efficiency_pct"]
     missing = _check_columns(cycle_summary, required)
     if missing:
         logger.warning("plot_coulombic_efficiency: missing columns %s — placeholder", missing)
+        diag = diagnose_columns(cycle_summary, required,
+                                optional=["energy_efficiency_pct", "charge_capacity_ah",
+                                          "discharge_capacity_ah"])
+        diag.note = ("coulombic_efficiency_pct = Q_discharge / Q_charge × 100. "
+                     "Requires a cycle that contains both a charge and a discharge step.")
         return make_placeholder(
             title="Coulombic and Energy Efficiency vs. Cycle",
             missing_columns=missing,
             output_dir=output_dir,
             stem="coulombic_efficiency",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     cs = cycle_summary.sort_values("cycle_index").copy()
-    has_energy_eff = "energy_efficiency" in cs.columns
+    has_energy_eff = "energy_efficiency_pct" in cs.columns
 
     fig, ax = plt.subplots(figsize=(SINGLE_COL_WIDTH_IN, DEFAULT_HEIGHT_IN))
 
     ax.plot(
-        cs["cycle_index"], cs["coulombic_efficiency"],
+        cs["cycle_index"], cs["coulombic_efficiency_pct"],
         marker="o", markersize=4, linestyle="-",
         color=WONG_PALETTE[5], label="Coulombic efficiency",
     )
     if has_energy_eff:
         ax.plot(
-            cs["cycle_index"], cs["energy_efficiency"],
+            cs["cycle_index"], cs["energy_efficiency_pct"],
             marker="s", markersize=4, linestyle="--",
             color=WONG_PALETTE[1], label="Energy efficiency",
         )
 
     ax.axhline(100.0, color="gray", linewidth=0.8, linestyle="--", alpha=0.7)
 
-    all_vals = cs["coulombic_efficiency"].dropna().tolist()
+    all_vals = cs["coulombic_efficiency_pct"].dropna().tolist()
     if has_energy_eff:
-        all_vals += cs["energy_efficiency"].dropna().tolist()
+        all_vals += cs["energy_efficiency_pct"].dropna().tolist()
     ymin = min(80.0, min(all_vals) - 1.0) if all_vals else 80.0
     ymax = max(105.0, max(all_vals) + 1.0) if all_vals else 105.0
     ax.set_ylim(ymin, ymax)
@@ -273,12 +296,18 @@ def plot_dcir_vs_cycle(
     missing = _check_columns(cycle_summary, required)
     if missing:
         logger.warning("plot_dcir_vs_cycle: missing columns %s — placeholder", missing)
+        diag = diagnose_columns(cycle_summary, required,
+                                optional=["mean_ac_impedance_ohm", "dcir_ohm"])
+        diag.note = ("mean_dcir_ohm is the per-cycle average of the cycler's DCIR column. "
+                     "If the DCIR column was all-zero, the cycler may not have "
+                     "performed a pulse measurement.")
         return make_placeholder(
             title="DCIR vs. Cycle Number",
             missing_columns=missing,
             output_dir=output_dir,
             stem="dcir_vs_cycle",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     cs = cycle_summary.sort_values("cycle_index").copy()

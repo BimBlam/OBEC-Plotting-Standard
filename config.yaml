@@ -8,10 +8,10 @@
 # ---------------------------------------------------------------------------
 
 # Directory containing raw CSV files from the battery cycler.
-input_dir: "/home/addyd/Projects/OBEC/dataProc"
+input_dir: "/mnt/OBEC/Battery/Data for Jeol/New Data for Script - txt"
 
 # Root directory for all generated plots and tables.
-output_dir: "dataProc/output"
+output_dir: "/mnt/OBEC/Battery/Data for Jeol/New Data for Script - txt/output"
 
 # ---------------------------------------------------------------------------
 # Cell / electrode parameters
@@ -48,7 +48,7 @@ selected_plot_families:
   - voltage_profiles
   - cycle_summary
   - rate_capability
-  - pulse_resistance
+  # - pulse_resistance
   - ragone
   - qa
 
@@ -56,7 +56,6 @@ selected_plot_families:
 # Supported: svg, pdf, png
 output_formats:
   - svg
-  - pdf
 
 # Visual theme: "publication" (clean, paper-ready) or "dark"
 theme: "publication"

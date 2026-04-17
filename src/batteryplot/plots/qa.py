@@ -50,8 +50,13 @@ from batteryplot.styles import (
     DOUBLE_COL_WIDTH_IN,
     DEFAULT_HEIGHT_IN,
     save_figure,
+    add_assumption_warning,
 )
-from batteryplot.placeholders import make_placeholder
+from batteryplot.placeholders import (
+    make_placeholder,
+    diagnose_columns,
+    ColumnDiagnostic,
+)
 
 logger = logging.getLogger("batteryplot.plots.qa")
 
@@ -67,7 +72,7 @@ CANONICAL_COLUMNS = [
     "charge_energy_wh", "discharge_energy_wh",
     "timestamp_dt", "record_index", "loop_index",
     # Cycle-summary-only columns
-    "coulombic_efficiency", "energy_efficiency", "capacity_retention_pct",
+    "coulombic_efficiency_pct", "energy_efficiency_pct", "capacity_retention_pct",
     "mean_dcir_ohm", "mean_ac_impedance_ohm",
 ]
 
@@ -125,12 +130,16 @@ def plot_temperature_vs_time(
     missing = _check_columns(df, required)
     if missing:
         logger.warning("plot_temperature_vs_time: missing columns %s", missing)
+        diag = diagnose_columns(df, required, optional=["humidity_pct"])
+        diag.note = ("temperature_c all-zero usually means the thermocouple "
+                     "was not connected or the cycler channel has no sensor.")
         return make_placeholder(
             title="Temperature vs. Time",
             missing_columns=missing,
             output_dir=output_dir,
             stem="temperature_vs_time",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     has_humidity = "humidity_pct" in df.columns
@@ -214,12 +223,14 @@ def plot_current_voltage_overview(
     missing = _check_columns(df, required)
     if missing:
         logger.warning("plot_current_voltage_overview: missing columns %s", missing)
+        diag = diagnose_columns(df, required)
         return make_placeholder(
             title="Current and Voltage Overview",
             missing_columns=missing,
             output_dir=output_dir,
             stem="current_voltage_overview",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     time_h = df["elapsed_time_s"] / 3600.0
@@ -282,7 +293,7 @@ def plot_data_availability(
 
     # This plot always succeeds (it shows what IS available)
     cycle_summary_cols = {
-        "coulombic_efficiency", "energy_efficiency", "capacity_retention_pct",
+        "coulombic_efficiency_pct", "energy_efficiency_pct", "capacity_retention_pct",
         "mean_dcir_ohm", "mean_ac_impedance_ohm",
         "charge_capacity_ah", "discharge_capacity_ah",
         "charge_energy_wh", "discharge_energy_wh",

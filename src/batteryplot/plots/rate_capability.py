@@ -35,8 +35,13 @@ from batteryplot.styles import (
     SINGLE_COL_WIDTH_IN,
     DEFAULT_HEIGHT_IN,
     save_figure,
+    add_assumption_warning,
 )
-from batteryplot.placeholders import make_placeholder
+from batteryplot.placeholders import (
+    make_placeholder,
+    diagnose_columns,
+    ColumnDiagnostic,
+)
 
 logger = logging.getLogger("batteryplot.plots.rate_capability")
 
@@ -103,12 +108,17 @@ def plot_rate_capability(
     missing = _check_columns(cycle_summary, required_cs)
     if missing:
         logger.warning("plot_rate_capability: missing cycle_summary columns %s", missing)
+        diag = diagnose_columns(cycle_summary, required_cs,
+                                optional=["charge_capacity_ah", "c_rate"])
+        diag.note = ("C-rate axis requires nominal_capacity_ah in config. "
+                     "Without it, |current| (A) is used as x-axis.")
         return make_placeholder(
             title="Rate Capability: Capacity vs. C-rate",
             missing_columns=missing,
             output_dir=output_dir,
             stem="rate_capability",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     cs = cycle_summary.sort_values("cycle_index").copy()
@@ -169,6 +179,12 @@ def plot_rate_capability(
     ax.set_title("Rate Capability: Capacity vs. C-rate")
     ax.legend(fontsize=7, loc="best")
 
+    _rc_warnings: list[str] = []
+    if getattr(config, "nominal_capacity_ah", None) is None:
+        _rc_warnings.append(
+            "nominal_capacity_ah not set: x-axis shows |current| (A), not C-rate"
+        )
+    add_assumption_warning(fig, _rc_warnings)
     return save_figure(fig, output_dir, "rate_capability", formats=_get_formats(config))
 
 
@@ -214,12 +230,16 @@ def plot_rate_voltage_profiles(
     missing = _check_columns(df, required_ts)
     if missing:
         logger.warning("plot_rate_voltage_profiles: missing df columns %s", missing)
+        diag = diagnose_columns(df, required_ts, optional=["current_a"])
+        diag.note = ("Requires at least 2 distinct current magnitudes across "
+                     "cycles to show rate-dependent voltage profiles.")
         return make_placeholder(
             title="Voltage Profiles at Representative C-rates",
             missing_columns=missing,
             output_dir=output_dir,
             stem="rate_voltage_profiles",
             formats=_get_formats(config),
+            diagnostic=diag,
         )
 
     has_current = "current_a" in df.columns
@@ -241,10 +261,13 @@ def plot_rate_voltage_profiles(
         )
         .reset_index()
     )
-    per_cycle["i_rounded"] = per_cycle["mean_abs_i"].apply(lambda x: _sig_round(x, 2))
-    per_cycle = per_cycle[per_cycle["i_rounded"] > 0]
+    # Round to 1 sig fig for grouping (to merge near-identical rates that differ
+    # only due to float noise, e.g. 0.00097 A vs 0.00099 A both → 0.001 A).
+    # Keep the full 2-sig-fig mean for the axis label (computed below per group).
+    per_cycle["i_group"] = per_cycle["mean_abs_i"].apply(lambda x: _sig_round(x, 1))
+    per_cycle = per_cycle[per_cycle["i_group"] > 0]
 
-    distinct_levels = sorted(per_cycle["i_rounded"].unique())
+    distinct_levels = sorted(per_cycle["i_group"].unique())
     if len(distinct_levels) < 2:
         return make_placeholder(
             title="Voltage Profiles at Representative C-rates",
@@ -258,39 +281,106 @@ def plot_rate_voltage_profiles(
     nom_cap = getattr(config, "nominal_capacity_ah", None)
     use_c_rate = (nom_cap is not None and nom_cap > 0)
 
-    rep_cycles = {}
+    # For each 1-sig-fig group: pick the representative cycle (most data points)
+    # and compute the 2-sig-fig mean |current| for the label.
+    rep_cycles: dict = {}   # group_value -> (cycle_id, label_current_A)
     for lvl in distinct_levels:
-        subset = per_cycle[per_cycle["i_rounded"] == lvl]
-        best = subset.loc[subset["n_points"].idxmax(), "cycle_index"]
-        rep_cycles[lvl] = int(best)
+        subset = per_cycle[per_cycle["i_group"] == lvl]
+        best_row = subset.loc[subset["n_points"].idxmax()]
+        best_cyc = int(best_row["cycle_index"])
+        # Use 2-sig-fig mean of all cycles in this group for a stable label
+        mean_i_label = _sig_round(subset["mean_abs_i"].mean(), 2)
+        rep_cycles[lvl] = (best_cyc, mean_i_label)
 
     fig, ax = plt.subplots(figsize=(SINGLE_COL_WIDTH_IN, DEFAULT_HEIGHT_IN))
 
-    for idx, (lvl, cyc) in enumerate(sorted(rep_cycles.items())):
+    legend_handles: list = []
+    legend_labels: list = []
+
+    for idx, (lvl, (cyc, label_i)) in enumerate(sorted(rep_cycles.items())):
         color = WONG_PALETTE[idx % len(WONG_PALETTE)]
         cyc_df = df[df["cycle_index"] == cyc].copy()
         if len(cyc_df) < 2:
             continue
 
-        cyc_df = cyc_df.copy()
-        cyc_df["cap_reset"] = cyc_df["capacity_ah"] - cyc_df["capacity_ah"].min()
-
         if use_c_rate:
-            rate_label = f"{lvl / nom_cap:.2g}C"
+            rate_label = f"{label_i / nom_cap:.2g}C"
         else:
-            rate_label = f"{lvl:.3g} A"
+            rate_label = f"{label_i:.3g} A"
 
-        ax.plot(
-            cyc_df["cap_reset"],
-            cyc_df["voltage_v"],
-            color=color,
-            linewidth=0.9,
-            label=rate_label,
-        )
+        # Split into charge and discharge arcs so each is plotted independently.
+        # This prevents the artefact where the end of the charge arc is connected
+        # directly to the start of the discharge arc (both accumulators reset to 0
+        # at the start of each step in Maccor/Arbin exports).
+        plotted = False
+        if "segment" in cyc_df.columns:
+            chg = cyc_df[cyc_df["segment"] == "charge"]
+            dis = cyc_df[cyc_df["segment"] == "discharge"]
+        else:
+            # Fallback: infer segment from current sign
+            if "current_a" in cyc_df.columns:
+                cur = pd.to_numeric(cyc_df["current_a"], errors="coerce")
+                chg = cyc_df[cur > 0]
+                dis = cyc_df[cur < 0]
+            else:
+                chg = pd.DataFrame()
+                dis = cyc_df  # plot everything as discharge
+
+        # --- Discharge arc (solid line) ---
+        if len(dis) >= 2:
+            dis_cap = pd.to_numeric(dis["capacity_ah"], errors="coerce")
+            dis_v   = pd.to_numeric(dis["voltage_v"],   errors="coerce")
+            # Reset accumulator: starts at 0, increases monotonically.
+            # Use absolute value — Maccor may record as positive even on discharge.
+            cap_reset = dis_cap.abs() - dis_cap.abs().min()
+            valid = dis_v.notna() & cap_reset.notna()
+            if valid.sum() >= 2:
+                line, = ax.plot(
+                    cap_reset[valid], dis_v[valid],
+                    color=color, linewidth=0.9, linestyle="-",
+                    label=rate_label,
+                )
+                legend_handles.append(line)
+                legend_labels.append(rate_label)
+                plotted = True
+
+        # --- Charge arc (dashed line, same colour, no extra legend entry) ---
+        if len(chg) >= 2:
+            chg_cap = pd.to_numeric(chg["capacity_ah"], errors="coerce")
+            chg_v   = pd.to_numeric(chg["voltage_v"],   errors="coerce")
+            cap_reset = chg_cap.abs() - chg_cap.abs().min()
+            valid = chg_v.notna() & cap_reset.notna()
+            if valid.sum() >= 2:
+                if not plotted:
+                    # If discharge was absent, use charge as the legend entry
+                    line, = ax.plot(
+                        cap_reset[valid], chg_v[valid],
+                        color=color, linewidth=0.9, linestyle="--",
+                        label=rate_label,
+                    )
+                    legend_handles.append(line)
+                    legend_labels.append(rate_label)
+                else:
+                    ax.plot(
+                        cap_reset[valid], chg_v[valid],
+                        color=color, linewidth=0.9, linestyle="--",
+                        alpha=0.55,
+                    )
 
     ax.set_xlabel("Capacity (Ah)")
     ax.set_ylabel("Voltage (V)")
     ax.set_title("Voltage Profiles at Representative C-rates")
-    ax.legend(fontsize=7, loc="best", title="Rate" if use_c_rate else "|Current|")
+
+    # Build legend with rate labels only (one entry per rate, from discharge arc).
+    # Add a style note for charge vs discharge if any charge arcs were plotted.
+    rate_title = "Rate" if use_c_rate else "|Current|"
+    if legend_handles:
+        ax.legend(legend_handles, legend_labels,
+                  fontsize=7, loc="best", title=rate_title)
+    else:
+        ax.legend(fontsize=7, loc="best", title=rate_title)
+
+    # Solid = discharge, dashed = charge
+    add_assumption_warning(fig, ["Solid lines: discharge arcs. Dashed lines (faded): charge arcs."])
 
     return save_figure(fig, output_dir, "rate_voltage_profiles", formats=_get_formats(config))

@@ -7,3 +7,4 @@ typer[all]>=0.9
 pydantic>=2.0
 PyYAML>=6.0
 rich>=13.0
+xlrd>=2.0.2

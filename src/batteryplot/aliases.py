@@ -45,9 +45,14 @@ ALIAS_TABLE: Dict[str, List[str]] = {
     "elapsed_time_s": [
         "test time",
         "testtime",
+        "test time (s)",
+        "test time (sec)",
         "elapsed time",
+        "elapsed time (s)",
+        "elapsed time (sec)",
         "time (s)",
         "time(s)",
+        "time (sec)",
         "time",
         "total time",
     ],
@@ -55,14 +60,15 @@ ALIAS_TABLE: Dict[str, List[str]] = {
         "step time",
         "steptime",
         "step time (s)",
+        "step time (sec)",
         "step_time",
     ],
     # ------------------------------------------------------------------
     # Cycle / step indexing
     # ------------------------------------------------------------------
     "cycle_index": [
-        "cycle p",
-        "cycle_p",
+        "cycle c",
+        "cycle_c",
         "cycle",
         "cycle number",
         "cycle no",
@@ -70,11 +76,17 @@ ALIAS_TABLE: Dict[str, List[str]] = {
         "cycle index",
         "cyc",
     ],
-    # In Arbin exports "Cycle C" is the step counter within the cycle.
-    # A secondary alias "step" is also registered under step_index.
+    # In Maccor exports "Cycle C" is the charge/discharge cycle counter
+    # and "Cycle P" is the procedure-step counter.  In Arbin the roles are
+    # reversed (Cycle P = overall cycle, Cycle C = step within cycle).
+    # We treat "Cycle C" as the primary cycle_index source (Maccor convention)
+    # and "Cycle P" as a fallback step_index candidate.  Users on Arbin will
+    # have their cycle mapped via "Cycle P" → cycle_index if they hit the
+    # duplicate-canonical guard and the first-seen wins.
+    # Separate, unambiguous step aliases are listed below.
     "step_index": [
-        "cycle c",
-        "cycle_c",
+        "cycle p",
+        "cycle_p",
         "step",
         "step no",
         "step no.",
@@ -94,14 +106,24 @@ ALIAS_TABLE: Dict[str, List[str]] = {
     # ------------------------------------------------------------------
     # Electrical measurements
     # ------------------------------------------------------------------
+    # Maccor exports current in mA ("Current (mA)"); the mA variants are
+    # mapped here to the same canonical name.  The unit-conversion step in
+    # build_analysis_df divides by 1000 for columns where the raw header
+    # contains "(ma)" or "(milliamp)".
     "current_a": [
         "current (a)",
         "current(a)",
+        "current (ma)",
+        "current(ma)",
         "current",
         "cur (a)",
         "cur(a)",
+        "cur (ma)",
+        "cur(ma)",
         "i (a)",
         "i(a)",
+        "i (ma)",
+        "i(ma)",
         "amps",
         "ampere",
     ],
@@ -115,16 +137,24 @@ ALIAS_TABLE: Dict[str, List[str]] = {
         "v(v)",
         "volts",
     ],
+    # Maccor capacity in mAHr; same canonical, converted ÷1000 when raw
+    # header contains "(mahr)" / "(mah)" / "(mahr)".
     "capacity_ah": [
         "capacity (ahr)",
         "capacity(ahr)",
         "capacity (ah)",
         "capacity(ah)",
+        "capacity (mahr)",
+        "capacity(mahr)",
+        "capacity (mah)",
+        "capacity(mah)",
         "capacity",
         "cap (ahr)",
         "cap(ahr)",
         "cap (ah)",
         "cap(ah)",
+        "cap (mahr)",
+        "cap(mahr)",
         "charge (ah)",
         "cap",
     ],
@@ -133,6 +163,10 @@ ALIAS_TABLE: Dict[str, List[str]] = {
         "energy(whr)",
         "energy (wh)",
         "energy(wh)",
+        "energy (mwhr)",
+        "energy(mwhr)",
+        "energy (mwh)",
+        "energy(mwh)",
         "energy",
         "e (wh)",
         "e(wh)",
@@ -156,6 +190,10 @@ ALIAS_TABLE: Dict[str, List[str]] = {
         "esr",
         "ac impedance (ohm)",
         "ac impedance (ohms)",
+        "ac (ohms)",
+        "ac(ohms)",
+        "ac (ohm)",
+        "ac(ohm)",
     ],
     "dcir_ohm": [
         "dcir (ohms)",
@@ -207,12 +245,18 @@ ALIAS_TABLE: Dict[str, List[str]] = {
     # ------------------------------------------------------------------
     # Gravimetric / areal quantities
     # ------------------------------------------------------------------
+    # Maccor exports specific capacity in mAh/g as "S.Capacity (mAh/g)".
+    # The canonical unit is Ah/g; mAh/g variants are divided by 1000 in
+    # build_analysis_df alongside current and capacity.
     "specific_capacity_ah_g": [
         "s.capacity (ah/g)",
         "s.capacity(ah/g)",
+        "s.capacity (mah/g)",
+        "s.capacity(mah/g)",
         "s.cap",
         "specific capacity",
         "specific capacity (ah/g)",
+        "specific capacity (mah/g)",
         "specific cap",
         "cap (ah/g)",
         "cap(ah/g)",

@@ -110,3 +110,47 @@ def save_figure(fig, output_dir, stem: str, formats=("svg", "pdf")) -> list:
         saved.append(p)
     plt.close(fig)
     return saved
+
+
+def add_assumption_warning(fig, warnings: list[str]) -> None:
+    """
+    Stamp a small "Assumptions" notice onto a real plot figure.
+
+    Call this *before* ``save_figure`` whenever a plot had to fall back on
+    a default value that could make the result physically misleading — for
+    example, when C-rate is shown but ``nominal_capacity_ah`` was not
+    supplied and a default was assumed, or when gravimetric axes are used
+    with an estimated active mass.
+
+    The notice appears as a small italic annotation anchored to the bottom
+    of the figure (figure coordinates, not axes coordinates) so it is
+    always visible regardless of the number of subplots.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure to annotate.
+    warnings : list of str
+        Short one-line strings describing each assumption.  Each entry is
+        prefixed with "⚠" automatically.
+    """
+    if not warnings:
+        return
+    lines = [f"\u26a0\ufe0f  {w}" for w in warnings]
+    text = "  |  ".join(lines)
+    fig.text(
+        0.5, 0.01,
+        text,
+        ha="center", va="bottom",
+        fontsize=5.5,
+        color="#8B4513",        # muted brown — visible but not alarming
+        style="italic",
+        wrap=True,
+        bbox=dict(
+            boxstyle="round,pad=0.3",
+            facecolor="#FFF8E7",   # pale amber
+            edgecolor="#E6C87A",
+            linewidth=0.6,
+            alpha=0.85,
+        ),
+    )

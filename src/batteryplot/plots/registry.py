@@ -62,8 +62,8 @@ PLOT_REGISTRY: List[PlotSpec] = [
         key="coulombic_efficiency",
         title="Coulombic and Energy Efficiency vs. Cycle",
         family="cycle_summary",
-        required_columns=["cycle_index", "coulombic_efficiency"],
-        optional_columns=["energy_efficiency"],
+        required_columns=["cycle_index", "coulombic_efficiency_pct"],
+        optional_columns=["energy_efficiency_pct"],
         data_source="cycle_summary",
         description="Ratio of discharge to charge capacity per cycle. "
                     "Values near 100% indicate good cell health.",

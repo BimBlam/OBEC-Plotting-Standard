@@ -80,6 +80,15 @@ class BatteryPlotConfig(BaseModel):
         gt=0,
         description="Active electrode mass in grams. Required for gravimetric normalisation.",
     )
+    default_mass_threshold_g: float = Field(
+        default=1.0,
+        description=(
+            "Mass values at or below this threshold (grams) are flagged as likely "
+            "cycler defaults (Maccor/Arbin ship with 1 g as the default SCap mass). "
+            "1 g is unrealistically large for thin-film or coin-cell electrodes; "
+            "any value <= this sentinel triggers a plot-level assumption warning."
+        ),
+    )
     electrode_area_cm2: Optional[float] = Field(
         None,
         gt=0,

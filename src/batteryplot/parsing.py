@@ -1,27 +1,30 @@
 """
 batteryplot.parsing
 ===================
-Robust CSV parser for Arbin-style battery-cycler exports.
+Multi-format battery-cycler file parser.
 
-Arbin file structure
+Supported formats (delegated to ``batteryplot.reader``)
+-------------------------------------------------------
+- ``.csv``  — comma-separated Arbin / Maccor exports
+- ``.txt``  — tab- or comma-delimited Maccor exports
+- ``.xls``  — Legacy Maccor / Arbin Excel 97-2003
+- ``.xlsx`` — Modern Excel exports
+
+All formats are normalised to the same internal representation by
+``batteryplot.reader.load_file`` before column mapping, time parsing,
+and numeric coercion are applied here.
+
+File structure assumptions
+--------------------------
+- An optional block of key/value metadata rows at the top of the file.
+- A single header row identified by the header-detection heuristic.
+- Data rows immediately after the header.
+
+Time column handling
 --------------------
-Row 0 (line 1):  metadata, e.g. ``Today's Date ,4/14/2026``
-Row 1 (line 2):  metadata, e.g. ``Date of Test:,...``
-Row 2 (line 3):  **real header row** with all column names
-Row 3+:          data rows
-
-Because different firmware versions and export templates sometimes include
-additional or fewer metadata rows, the header row is *detected* rather than
-assumed to be at a fixed line index.
-
-Time columns
-------------
-Arbin exports ``Test Time`` and ``Step Time`` in the format ``  Xd HH:MM:SS``
-where X is the number of elapsed days.  These are converted to total seconds
-(float) during loading.
-
-``DPT Time`` is an absolute datetime string (e.g. ``4/10/2026 3:02:24 AM``)
-and is parsed to ``pd.Timestamp``.
+Arbin/Maccor time columns in the format ``Xd HH:MM:SS`` are converted to
+total seconds (float).  Absolute datetime columns (e.g. ``DPT Time``) are
+parsed to ``pd.Timestamp``.
 """
 
 from __future__ import annotations
@@ -35,6 +38,11 @@ import pandas as pd
 
 from batteryplot.aliases import map_columns
 from batteryplot.config import BatteryPlotConfig
+from batteryplot.reader import (
+    load_file as _reader_load_file,
+    prompt_mass_if_default,
+    SUPPORTED_EXTENSIONS,
+)
 
 logger = logging.getLogger("batteryplot")
 
@@ -145,7 +153,7 @@ def detect_header_row(
 
     raise ValueError(
         f"Could not detect a header row in the first {max_scan} lines of '{filepath}'. "
-        "Check that the file is a valid Arbin CSV export."
+        "Check that the file is a valid Arbin/Maccor export (CSV, TXT, XLS, or XLSX)."
     )
 
 
@@ -241,7 +249,7 @@ def load_csv(
     config: BatteryPlotConfig,
 ) -> Tuple[pd.DataFrame, Dict[str, str], Dict[str, str]]:
     """
-    Load an Arbin-style CSV file into a raw DataFrame and extract metadata.
+    Load a battery-cycler export file (.csv, .txt, .xls, .xlsx) into a raw DataFrame.
 
     Processing steps:
 
@@ -276,38 +284,36 @@ def load_csv(
     and apply final cleaning.
     """
     filepath = Path(filepath)
-    logger.info("Loading CSV: %s", filepath)
+    logger.info("Loading file: %s", filepath)
 
-    # --- 3.1 Detect header ---
-    header_idx, raw_columns = detect_header_row(
-        filepath,
-        max_scan=config.header_search_rows,
-        min_numeric_fraction=config.min_numeric_fraction,
-    )
-    logger.info(
-        "Header row at line %d; %d columns detected.", header_idx, len(raw_columns)
-    )
+    # --- Delegate raw loading to the format-agnostic reader ---
+    # reader.load_file handles .csv, .txt, .xls, .xlsx, sniffs delimiters,
+    # detects header rows, and extracts file-embedded mass / SCap metadata.
+    raw_df, metadata, file_mass_g = _reader_load_file(filepath, config)
 
-    # --- 3.2 Collect metadata from rows before the header ---
-    metadata: Dict[str, str] = _extract_metadata(filepath, header_idx)
+    # If the file provided an active mass and config has none set, apply it
+    # to a local copy of config so downstream transforms can use it.
+    # We do NOT mutate the caller's config object.
+    if file_mass_g is not None and getattr(config, "active_mass_g", None) is None:
+        # Prompt the user if the mass looks like the cycler factory default (1 g).
+        # In non-interactive / piped sessions the prompt is silently skipped.
+        file_mass_g = prompt_mass_if_default(filepath, file_mass_g, config)
+
+        import copy as _copy
+        config = _copy.copy(config)
+        object.__setattr__(config, "active_mass_g", file_mass_g)
+        logger.info(
+            "active_mass_g set from file metadata: %.6g g "
+            "(use config.yaml to override).",
+            file_mass_g,
+        )
+
     if metadata:
         logger.debug("Metadata extracted: %s", metadata)
 
-    # --- 3.3 Read CSV starting at the header row ---
-    raw_df = pd.read_csv(
-        filepath,
-        skiprows=header_idx,
-        header=0,
-        dtype=str,          # read everything as str; we parse types ourselves
-        na_values=["N/A", "n/a", "NA", ""],
-        keep_default_na=True,
-        low_memory=False,
-    )
-    # Strip whitespace from column names
-    raw_df.columns = [c.strip() for c in raw_df.columns]
     logger.debug("Raw DataFrame shape: %s", raw_df.shape)
 
-    # --- 3.4 Map columns ---
+    # --- Map columns ---
     column_map = map_columns(list(raw_df.columns))
     n_mapped = len(column_map)
     n_total = len(raw_df.columns)
@@ -340,6 +346,20 @@ def load_csv(
 # ---------------------------------------------------------------------------
 
 
+# Canonical columns that need ÷1000 when the raw header uses a milli-unit.
+# Maps canonical_name → regex pattern that matches milli-unit raw headers.
+_MILLI_UNIT_PATTERNS: Dict[str, re.Pattern] = {
+    "current_a":            re.compile(r"\(m[aA]\)"),          # (mA)
+    "capacity_ah":          re.compile(r"\(m[aA][hH]r?\)"),    # (mAHr) (mAh)
+    "energy_wh":            re.compile(r"\(m[wW][hH]r?\)"),    # (mWHr) (mWh)
+    "specific_capacity_ah_g": re.compile(r"\(m[aA][hH]/g\)"), # (mAh/g)
+    "charge_capacity_ah":   re.compile(r"\(m[aA][hH]r?\)"),
+    "discharge_capacity_ah": re.compile(r"\(m[aA][hH]r?\)"),
+    "charge_energy_wh":     re.compile(r"\(m[wW][hH]r?\)"),
+    "discharge_energy_wh":  re.compile(r"\(m[wW][hH]r?\)"),
+}
+
+
 def build_analysis_df(
     raw_df: pd.DataFrame,
     column_map: Dict[str, str],
@@ -351,9 +371,12 @@ def build_analysis_df(
 
     1. Renames raw columns to their canonical equivalents using *column_map*.
     2. Keeps only canonical columns (drops raw columns without a mapping).
-    3. Drops rows where **both** ``current_a`` and ``voltage_v`` are ``NaN``
+    3. Applies ÷1000 unit conversion for columns whose raw header uses
+       milli-units (mA, mAHr, mWHr, mAh/g) so all canonical columns are
+       in SI base units (A, Ah, Wh, Ah/g).
+    4. Drops rows where **both** ``current_a`` and ``voltage_v`` are ``NaN``
        (these rows carry no electrochemical information).
-    4. Coerces all remaining object-dtype columns to numeric where possible,
+    5. Coerces all remaining object-dtype columns to numeric where possible,
        leaving non-convertible values as ``NaN``.
 
     Parameters
@@ -371,7 +394,27 @@ def build_analysis_df(
     # Only rename raw columns that are present in raw_df AND in column_map
     rename_map = {raw: canonical for raw, canonical in column_map.items()
                   if raw in raw_df.columns}
+    # Track which raw columns used milli-units so we can scale after rename
+    milli_scale_canonicals: set = set()
+    for raw, canonical in rename_map.items():
+        pat = _MILLI_UNIT_PATTERNS.get(canonical)
+        if pat and pat.search(raw):
+            milli_scale_canonicals.add(canonical)
+            logger.debug(
+                "Column '%s' → '%s': raw header uses milli-unit; will apply ÷1000.",
+                raw, canonical,
+            )
     df = raw_df[list(rename_map.keys())].rename(columns=rename_map)
+
+    # Apply ÷1000 unit conversion for milli-unit columns (mA→A, mAHr→Ah, etc.)
+    # Coerce to numeric first so the division is safe.
+    if milli_scale_canonicals:
+        for col in milli_scale_canonicals:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce") / 1000.0
+                logger.info(
+                    "Applied ÷1000 unit conversion to '%s' (raw milli-unit).", col
+                )
 
     # Drop rows where both current_a and voltage_v are NaN
     has_current = "current_a" in df.columns

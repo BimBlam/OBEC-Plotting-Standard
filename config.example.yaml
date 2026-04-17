@@ -11,6 +11,13 @@ output_dir: output        # Folder where results will be written
 # electrode_area_cm2: 1.13      # Electrode area in cm² (enables current density calculation)
 # density_g_cm3: 2.7            # Electrode density in g/cm³ (enables volumetric Ragone)
 
+# --- Mass default detection ---
+# Maccor and Arbin cyclers ship with a default SCap / mass of 1 g.
+# Any active_mass_g value at or below this threshold is flagged as a likely
+# default on all plots that use gravimetric normalisation.
+# Adjust if your cells genuinely have mass close to 1 g (unusual for thin-film).
+default_mass_threshold_g: 1.0
+
 # --- Plot selection ---
 representative_cycles: null   # [1, 25, 50] or null for auto (first, middle, last)
 selected_plot_families:

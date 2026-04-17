@@ -28,49 +28,69 @@ logger = logging.getLogger("batteryplot")
 # ---------------------------------------------------------------------------
 
 
-def discover_csv_files(input_dir: Path) -> List[Path]:
+def discover_input_files(input_dir: Path) -> List[Path]:
     """
-    Scan *input_dir* for CSV files, ignoring hidden and temp files.
+    Scan *input_dir* (non-recursively) for all supported battery-data files.
 
-    Rules:
-    - Filename must end with ``.csv`` (case-insensitive via glob).
-    - Filenames starting with ``.`` or ``~`` are ignored.
+    Supported extensions: ``.csv``, ``.txt``, ``.xls``, ``.xlsx``.
+
+    Rules
+    -----
+    - Only files **directly inside** *input_dir* are considered; subdirectories
+      are intentionally skipped.  This prevents the tool from reading its own
+      output files when the output directory is nested inside the input
+      directory.
+    - Filenames starting with ``.`` (hidden) or ``~`` (temp/lock) are ignored.
+    - Files whose stems start with ``batch_summary`` are ignored (they are
+      outputs written by this tool).
     - Results are sorted alphabetically by filename.
 
     Parameters
     ----------
     input_dir : Path
-        Directory to scan.
+        Directory to scan.  Must exist.
 
     Returns
     -------
     List[Path]
-        Sorted list of discovered CSV paths.
+        Sorted list of discovered file paths.
 
     Raises
     ------
     FileNotFoundError
         If *input_dir* does not exist.
     """
+    from batteryplot.reader import SUPPORTED_EXTENSIONS
+
     input_dir = Path(input_dir)
     if not input_dir.exists():
         raise FileNotFoundError(f"Input directory not found: {input_dir}")
 
-    all_csv = list(input_dir.glob("*.csv"))
-    # Also try case-insensitive (some systems may have .CSV)
-    all_csv += [p for p in input_dir.glob("*.CSV") if p not in all_csv]
+    found: List[Path] = []
+    # Use iterdir() (non-recursive) instead of rglob() to avoid subdirs
+    for p in input_dir.iterdir():
+        if not p.is_file():
+            continue                                   # skip subdirectories
+        if p.name.startswith(".") or p.name.startswith("~"):
+            continue                                   # hidden / temp
+        if p.stem.lower().startswith("batch_summary"):
+            continue                                   # our own output
+        if p.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue                                   # unsupported format
+        found.append(p)
 
-    # Filter out hidden/temp files
-    filtered = [
-        p for p in all_csv
-        if not p.name.startswith(".") and not p.name.startswith("~")
-    ]
+    found.sort(key=lambda p: p.name.lower())
+    logger.info(
+        "Found %d input file(s) in %s  (extensions: %s)",
+        len(found),
+        input_dir,
+        ", ".join(sorted({p.suffix.lower() for p in found})) or "none",
+    )
+    return found
 
-    # Sort alphabetically
-    filtered.sort(key=lambda p: p.name.lower())
 
-    logger.info("Found %d CSV file(s) in %s", len(filtered), input_dir)
-    return filtered
+# Backwards-compatibility alias so any external code using discover_csv_files still works
+discover_csv_files = discover_input_files
 
 
 # ---------------------------------------------------------------------------
@@ -455,8 +475,8 @@ def run_batch(
     output_dir = Path(config.output_dir)
     ensure_dir(output_dir)
 
-    # Discover
-    csv_files = discover_csv_files(input_dir)
+    # Discover all supported input files (non-recursive)
+    csv_files = discover_input_files(input_dir)
 
     # Filter if specific files requested
     if specific_files:
@@ -470,16 +490,16 @@ def run_batch(
         )
 
     if not csv_files:
-        logger.warning("No CSV files to process in %s.", input_dir)
+        logger.warning("No supported input files to process in %s.", input_dir)
         return pd.DataFrame()
 
     logger.info("Starting batch: %d cell(s) to process.", len(csv_files))
 
     summaries = []
-    for i, csv_path in enumerate(csv_files, start=1):
-        logger.info("--- [%d/%d] %s ---", i, len(csv_files), csv_path.name)
+    for i, input_path in enumerate(csv_files, start=1):
+        logger.info("--- [%d/%d] %s ---", i, len(csv_files), input_path.name)
         summary = process_cell(
-            csv_path=csv_path,
+            csv_path=input_path,
             config=config,
             output_base=output_dir,
             force_overwrite=config.overwrite,
