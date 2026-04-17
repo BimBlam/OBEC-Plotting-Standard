@@ -158,8 +158,8 @@ def cmd_run(
     batch_df = run_batch(cfg, specific_files=list(files) if files else None)
 
     if batch_df.empty:
-        typer.echo("No files were processed.")
-        raise typer.Exit(code=1)
+        typer.echo("No files were processed. Place input files in the input/ folder and re-run.")
+        raise typer.Exit(code=0)
 
     # Print summary table
     headers = ["Cell", "Cycles", "Data Points", "Real Plots", "Placeholders", "Status"]

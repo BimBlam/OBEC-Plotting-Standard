@@ -38,8 +38,12 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
     echo Setup complete!
 )
 
-REM Run batteryplot with any arguments passed to this script
-"%VENV_DIR%\Scripts\batteryplot.exe" %*
+REM Default to "run" if no arguments are provided (e.g. double-clicked)
+if "%~1"=="" (
+    "%VENV_DIR%\Scripts\batteryplot.exe" run
+) else (
+    "%VENV_DIR%\Scripts\batteryplot.exe" %*
+)
 
 if errorlevel 1 (
     echo.
