@@ -2,8 +2,8 @@
 # Copy this file to config.yaml and edit as needed.
 
 # --- Directories ---
-input_dir: input # Folder containing CSV files (one per cell)
-output_dir: output # Folder where results will be written
+input_dir: input          # Folder containing CSV files (one per cell)
+output_dir: output        # Folder where results will be written
 
 # --- Cell parameters (optional but recommended) ---
 # nominal_capacity_ah: 0.003    # Nominal cell capacity in Ah (enables C-rate calculation)
@@ -19,7 +19,7 @@ output_dir: output # Folder where results will be written
 default_mass_threshold_g: 1.0
 
 # --- Plot selection ---
-representative_cycles: null # [1, 25, 50] or null for auto (first, middle, last)
+representative_cycles: null   # [1, 25, 50] or null for auto (first, middle, last)
 selected_plot_families:
   - voltage_profiles
   - cycle_summary
@@ -35,12 +35,11 @@ output_formats:
 overwrite: true
 
 # --- Styling ---
-theme: publication # publication | dark
+theme: publication   # publication | dark
 
 # --- Parsing ---
-header_search_rows: 10 # Scan this many rows to find the real data header
-min_numeric_fraction: 0.5 # Fraction of columns that must be numeric in a data row
+header_search_rows: 10     # Scan this many rows to find the real data header
+min_numeric_fraction: 0.5  # Fraction of columns that must be numeric in a data row
 
 # --- Logging ---
 log_level: INFO
-fuzzy_guess: true

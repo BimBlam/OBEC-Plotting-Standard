@@ -52,6 +52,9 @@ Column mapping is case-insensitive and whitespace-tolerant. `Current (A)`, `curr
 
 ### Running
 
+> **PowerShell users:** prefix commands with `.\ ` — PowerShell does not run scripts from the current directory by default.
+
+**Command Prompt (cmd.exe):**
 ```batch
 REM Process all CSV files in the input/ folder:
 run_windows.bat run
@@ -64,6 +67,21 @@ run_windows.bat inspect "C:\Data\BatteryTests\cell_001.csv"
 
 REM Validate all files and report column mapping:
 run_windows.bat validate --input-dir "C:\Data\BatteryTests"
+```
+
+**PowerShell:**
+```powershell
+# Process all CSV files in the input/ folder:
+.\run_windows.bat run
+
+# Specify a different input folder:
+.\run_windows.bat run --input-dir "C:\Data\BatteryTests"
+
+# Inspect a single file without generating plots:
+.\run_windows.bat inspect "C:\Data\BatteryTests\cell_001.csv"
+
+# Validate all files and report column mapping:
+.\run_windows.bat validate --input-dir "C:\Data\BatteryTests"
 ```
 
 You can also open a Command Prompt, activate the virtual environment, and use `batteryplot` directly:

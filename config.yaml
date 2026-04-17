@@ -8,10 +8,10 @@
 # ---------------------------------------------------------------------------
 
 # Directory containing raw CSV files from the battery cycler.
-input_dir: "/mnt/OBEC/Battery/Data for Jeol/New Data for Script - txt"
+input_dir: "input"
 
 # Root directory for all generated plots and tables.
-output_dir: "/mnt/OBEC/Battery/Data for Jeol/New Data for Script - txt/output"
+output_dir: "output"
 
 # ---------------------------------------------------------------------------
 # Cell / electrode parameters
@@ -48,7 +48,7 @@ selected_plot_families:
   - voltage_profiles
   - cycle_summary
   - rate_capability
-  # - pulse_resistance
+  - pulse_resistance
   - ragone
   - qa
 
@@ -56,6 +56,7 @@ selected_plot_families:
 # Supported: svg, pdf, png
 output_formats:
   - svg
+  - pdf
 
 # Visual theme: "publication" (clean, paper-ready) or "dark"
 theme: "publication"
@@ -83,5 +84,4 @@ min_numeric_fraction: 0.5
 # ---------------------------------------------------------------------------
 
 # Python logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-log_level: "WARNING"
-fuzzy_guess: true
+log_level: "INFO"
