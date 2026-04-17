@@ -83,4 +83,5 @@ min_numeric_fraction: 0.5
 # ---------------------------------------------------------------------------
 
 # Python logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-log_level: "INFO"
+log_level: "WARNING"
+fuzzy_guess: true

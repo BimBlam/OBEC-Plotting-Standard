@@ -126,6 +126,15 @@ class BatteryPlotConfig(BaseModel):
         True,
         description="If True, overwrite existing output files.  If False, skip existing outputs.",
     )
+    fuzzy_guess: bool = Field(
+        default=True,
+        description=(
+            "When True, attempt to automatically classify each cell's cycles into "
+            "test regions (formation, rate_test, cycling) based on the current "
+            "profile. Rate-capability plots will only use cycles from rate_test "
+            "regions; cycle-stability plots will prefer cycling regions."
+        ),
+    )
 
     # --- Header detection --------------------------------------------------
     header_search_rows: int = Field(

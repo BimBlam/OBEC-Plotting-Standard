@@ -252,7 +252,7 @@ def plot_pulse_analysis(
     if missing:
         logger.warning("plot_pulse_analysis: missing df columns %s", missing)
         diag = diagnose_columns(df, required,
-                                optional=["dcir_ohm", "step_time_s", "step_index"])
+                                optional=["dcir_ohm", "step_time_s", "procedure_step"])
         diag.note = ("Pulse detection: step_time_s < 200 s and |current| > 0.01 A "
                      "followed by a rest. Minimum 3 pulses required.")
         return make_placeholder(

@@ -65,6 +65,19 @@ def _sig_round(x: float, sig: int = 2) -> float:
     return round(x * factor) / factor
 
 
+def _format_current(current_a: float) -> str:
+    """Format a current value with appropriate unit (A, mA, or uA) and 3 sig figs."""
+    abs_i = abs(current_a)
+    if abs_i == 0:
+        return "0 A"
+    if abs_i >= 0.1:
+        return f"{abs_i:.3g} A"
+    ma = abs_i * 1e3
+    if ma >= 0.1:
+        return f"{ma:.3g} mA"
+    return f"{abs_i * 1e6:.3g} \u00b5A"
+
+
 def _mean_current_per_cycle(df: pd.DataFrame) -> Optional[pd.Series]:
     if "cycle_index" not in df.columns or "current_a" not in df.columns:
         return None
@@ -121,7 +134,16 @@ def plot_rate_capability(
             diagnostic=diag,
         )
 
+    # Filter to rate_test region if available
     cs = cycle_summary.sort_values("cycle_index").copy()
+    if "test_region" in cs.columns:
+        rate_cs = cs[cs["test_region"] == "rate_test"]
+        if not rate_cs.empty:
+            logger.info("plot_rate_capability: using %d rate_test cycles (of %d total).", len(rate_cs), len(cs))
+            cs = rate_cs
+        else:
+            logger.info("plot_rate_capability: no rate_test cycles found; using all %d cycles.", len(cs))
+
     nom_cap = getattr(config, "nominal_capacity_ah", None)
     use_c_rate = (nom_cap is not None and nom_cap > 0)
 
@@ -234,7 +256,7 @@ def plot_rate_voltage_profiles(
         diag.note = ("Requires at least 2 distinct current magnitudes across "
                      "cycles to show rate-dependent voltage profiles.")
         return make_placeholder(
-            title="Voltage Profiles at Representative C-rates",
+            title="Voltage vs. Capacity by Rate",
             missing_columns=missing,
             output_dir=output_dir,
             stem="rate_voltage_profiles",
@@ -245,7 +267,7 @@ def plot_rate_voltage_profiles(
     has_current = "current_a" in df.columns
     if not has_current:
         return make_placeholder(
-            title="Voltage Profiles at Representative C-rates",
+            title="Voltage vs. Capacity by Rate",
             missing_columns=["current_a"],
             output_dir=output_dir,
             stem="rate_voltage_profiles",
@@ -253,8 +275,16 @@ def plot_rate_voltage_profiles(
             note="current_a is required to distinguish current levels.",
         )
 
+    # Filter to rate_test cycles if test_region column is available
+    plot_df = df
+    if "test_region" in df.columns:
+        rate_df = df[df["test_region"] == "rate_test"]
+        if not rate_df.empty:
+            logger.info("plot_rate_voltage_profiles: using %d rate_test rows.", len(rate_df))
+            plot_df = rate_df
+
     per_cycle = (
-        df.groupby("cycle_index")
+        plot_df.groupby("cycle_index")
         .agg(
             mean_abs_i=("current_a", lambda s: s.abs().mean()),
             n_points=("voltage_v", "count"),
@@ -270,7 +300,7 @@ def plot_rate_voltage_profiles(
     distinct_levels = sorted(per_cycle["i_group"].unique())
     if len(distinct_levels) < 2:
         return make_placeholder(
-            title="Voltage Profiles at Representative C-rates",
+            title="Voltage vs. Capacity by Rate",
             missing_columns=[],
             output_dir=output_dir,
             stem="rate_voltage_profiles",
@@ -299,14 +329,14 @@ def plot_rate_voltage_profiles(
 
     for idx, (lvl, (cyc, label_i)) in enumerate(sorted(rep_cycles.items())):
         color = WONG_PALETTE[idx % len(WONG_PALETTE)]
-        cyc_df = df[df["cycle_index"] == cyc].copy()
+        cyc_df = plot_df[plot_df["cycle_index"] == cyc].copy()
         if len(cyc_df) < 2:
             continue
 
         if use_c_rate:
             rate_label = f"{label_i / nom_cap:.2g}C"
         else:
-            rate_label = f"{label_i:.3g} A"
+            rate_label = _format_current(label_i)
 
         # Split into charge and discharge arcs so each is plotted independently.
         # This prevents the artefact where the end of the charge arc is connected
@@ -369,11 +399,11 @@ def plot_rate_voltage_profiles(
 
     ax.set_xlabel("Capacity (Ah)")
     ax.set_ylabel("Voltage (V)")
-    ax.set_title("Voltage Profiles at Representative C-rates")
+    ax.set_title("Voltage vs. Capacity by Rate")
 
     # Build legend with rate labels only (one entry per rate, from discharge arc).
     # Add a style note for charge vs discharge if any charge arcs were plotted.
-    rate_title = "Rate" if use_c_rate else "|Current|"
+    rate_title = "Rate"
     if legend_handles:
         ax.legend(legend_handles, legend_labels,
                   fontsize=7, loc="best", title=rate_title)

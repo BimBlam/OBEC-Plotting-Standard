@@ -112,7 +112,14 @@ def _setup_file_log_handler(log_dir: Path, cell_name: str) -> tuple:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     handler.setFormatter(formatter)
-    logging.getLogger("batteryplot").addHandler(handler)
+    bp_logger = logging.getLogger("batteryplot")
+    bp_logger.addHandler(handler)
+    # Ensure the logger level is permissive enough for messages to reach
+    # the file handler.  When process_cell() is called without the CLI
+    # entry point (e.g. in tests), setup_logging() may not have been
+    # invoked, leaving the logger at the default WARNING effective level.
+    if bp_logger.level == logging.NOTSET or bp_logger.level > logging.DEBUG:
+        bp_logger.setLevel(logging.DEBUG)
     return handler, log_path
 
 
@@ -162,6 +169,7 @@ def process_cell(
     from batteryplot.transforms import (
         label_charge_discharge,
         compute_cycle_summary,
+        classify_test_regions,
         detect_pulse_segments,
         compute_crate,
         compute_specific_capacity,
@@ -233,6 +241,16 @@ def process_cell(
             config,
         )
         n_cycles = len(cycle_summary)
+
+        # ------------------------------------------------------------------
+        # 6b. Classify test regions (fuzzy_guess)
+        # ------------------------------------------------------------------
+        if getattr(config, "fuzzy_guess", True) and not cycle_summary.empty:
+            cycle_summary = classify_test_regions(cycle_summary)
+            if "test_region" in cycle_summary.columns and "cycle_index" in analysis_df.columns:
+                region_map = cycle_summary.set_index("cycle_index")["test_region"]
+                analysis_df = analysis_df.copy()
+                analysis_df["test_region"] = analysis_df["cycle_index"].map(region_map)
 
         # ------------------------------------------------------------------
         # 7. Pulse segments

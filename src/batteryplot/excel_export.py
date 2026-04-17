@@ -233,7 +233,7 @@ def export_excel(
         and not col.startswith("_")
     ]
     if derived_cols and analysis_df is not None and not analysis_df.empty:
-        id_cols = [c for c in ["elapsed_time_s", "cycle_index", "step_index"] if c in analysis_df.columns]
+        id_cols = [c for c in ["elapsed_time_s", "cycle_index", "procedure_step"] if c in analysis_df.columns]
         keep_cols = list(dict.fromkeys(id_cols + derived_cols))  # deduplicated, ordered
         derived_df = analysis_df[keep_cols].copy()
         # Truncate to Excel limit

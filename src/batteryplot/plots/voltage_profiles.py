@@ -72,14 +72,23 @@ def _representative_cycles(cycle_summary: pd.DataFrame, config) -> List[int]:
     Return the list of cycle indices to plot.
 
     Uses config.representative_cycles when set; otherwise picks
-    [first, middle, last] from cycle_summary.
+    [first, middle, last] from cycle_summary, preferring cycles in the
+    "cycling" test region when test_region is available.
     """
     rep = getattr(config, "representative_cycles", None)
     if rep:
         return [int(c) for c in rep]
     if cycle_summary is None or "cycle_index" not in cycle_summary.columns or cycle_summary.empty:
         return []
-    cycles = sorted(cycle_summary["cycle_index"].dropna().unique().tolist())
+
+    # Prefer "cycling" region when test_region column is available
+    cs = cycle_summary
+    if "test_region" in cs.columns:
+        cycling_cs = cs[cs["test_region"] == "cycling"]
+        if not cycling_cs.empty:
+            cs = cycling_cs
+
+    cycles = sorted(cs["cycle_index"].dropna().unique().tolist())
     if len(cycles) == 0:
         return []
     if len(cycles) <= 3:
@@ -93,10 +102,43 @@ def _split_segments(cyc_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     Split a single-cycle DataFrame into charge and discharge sub-frames.
 
     Returns (charge_df, discharge_df).  Each sub-frame may be empty.
-    Uses current sign: positive → charge, negative → discharge.
+
+    Uses the ``segment`` column (set by :func:`label_charge_discharge`) when
+    available, because it is derived from the cycler's step-type code (MD
+    column) and correctly handles Maccor-style exports where current is always
+    positive.  Falls back to current sign only when ``segment`` is absent.
+
+    A defensive voltage-based sanity check swaps the two frames if the
+    "charge" sub-frame has a *lower* mean voltage than the "discharge"
+    sub-frame — physically, charge half-cycles always span a higher mean
+    voltage than discharge half-cycles for any normal battery chemistry.
     """
-    chg  = cyc_df[cyc_df["current_a"] >  CURRENT_THRESHOLD].copy()
-    dchg = cyc_df[cyc_df["current_a"] < -CURRENT_THRESHOLD].copy()
+    if "segment" in cyc_df.columns:
+        chg  = cyc_df[cyc_df["segment"] == "charge"].copy()
+        dchg = cyc_df[cyc_df["segment"] == "discharge"].copy()
+    elif "current_a" in cyc_df.columns:
+        chg  = cyc_df[cyc_df["current_a"] >  CURRENT_THRESHOLD].copy()
+        dchg = cyc_df[cyc_df["current_a"] < -CURRENT_THRESHOLD].copy()
+    else:
+        chg  = pd.DataFrame()
+        dchg = cyc_df.copy()
+
+    # Voltage sanity check: charge mean V should be >= discharge mean V.
+    if (
+        len(chg) >= 2
+        and len(dchg) >= 2
+        and "voltage_v" in chg.columns
+    ):
+        v_chg = pd.to_numeric(chg["voltage_v"], errors="coerce").mean()
+        v_dchg = pd.to_numeric(dchg["voltage_v"], errors="coerce").mean()
+        if not (pd.isna(v_chg) or pd.isna(v_dchg)) and v_chg < v_dchg:
+            logger.info(
+                "Voltage sanity swap: charge mean V (%.3f) < discharge mean V (%.3f); "
+                "swapping charge ↔ discharge.",
+                v_chg, v_dchg,
+            )
+            chg, dchg = dchg, chg
+
     return chg, dchg
 
 
@@ -129,9 +171,15 @@ def _arc_capacity(segment_df: pd.DataFrame, mirror: bool = False) -> pd.Series:
         Capacity values (Ah) for plotting.
     """
     cap = segment_df["capacity_ah"].copy()
-    # Reset to zero-based within this arc
-    cap = cap - cap.iloc[0] if len(cap) > 0 else cap
     cap = cap.abs()  # discharge accumulator may appear negative in some exports
+    # Reset to zero-based within this arc, but only if the first value is
+    # significantly above zero (> 1% of max).  When it already starts near 0,
+    # subtracting again would produce negative values due to float noise.
+    if len(cap) > 0:
+        cap_max = cap.max()
+        if cap_max > 0 and cap.iloc[0] > 0.01 * cap_max:
+            cap = cap - cap.iloc[0]
+            cap = cap.abs()  # ensure no negatives after subtraction
     if mirror:
         cap = cap.max() - cap
     return cap
@@ -231,7 +279,7 @@ def plot_voltage_vs_capacity(
                 logger.warning("Cycle %s: fewer than 2 data points — skipping.", cyc)
                 continue
 
-            if has_current:
+            if has_current or "segment" in cyc_df.columns:
                 chg, dchg = _split_segments(cyc_df)
             else:
                 chg  = pd.DataFrame()
@@ -292,11 +340,12 @@ def plot_voltage_vs_capacity(
 
     ax.set_xlabel("Capacity (Ah)")
     ax.set_ylabel("Voltage (V)")
-    ax.set_title("Charge/Discharge Voltage Profiles")
+    ax.set_title("Voltage vs. Capacity by Cycle")
 
     # --- Legend: style legend + cycle-colour legend ---
+    has_segment_info = has_current or "segment" in df.columns
     style_handles = []
-    if has_current:
+    if has_segment_info:
         style_handles = [
             mlines.Line2D([], [], color="gray", linestyle="-",  label="Discharge"),
             mlines.Line2D([], [], color="gray", linestyle="--", label="Charge"),
@@ -309,7 +358,7 @@ def plot_voltage_vs_capacity(
     formats = tuple(getattr(config, "output_formats", ("svg", "pdf")))
     # Assumption warnings — flag anything that required a default to be assumed
     _warnings: list[str] = []
-    if not has_current:
+    if not has_segment_info:
         _warnings.append("current_a absent: charge/discharge separation not possible; all data shown as single arc")
     if not has_cycle:
         _warnings.append("cycle_index absent: all data treated as one arc")

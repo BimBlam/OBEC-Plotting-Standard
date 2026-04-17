@@ -276,6 +276,16 @@ def compute_cycle_summary(
             else:
                 row[out] = float("nan")
 
+        # --- Mean current per half-cycle (needed by classify_test_regions) ---
+        if "current_a" in cycle_df.columns:
+            chg_cur = pd.to_numeric(chg["current_a"], errors="coerce") if not chg.empty else pd.Series(dtype=float)
+            dis_cur = pd.to_numeric(dis["current_a"], errors="coerce") if not dis.empty else pd.Series(dtype=float)
+            row["mean_charge_current_a"] = float(chg_cur.abs().mean()) if chg_cur.notna().any() else float("nan")
+            row["mean_discharge_current_a"] = float(dis_cur.abs().mean()) if dis_cur.notna().any() else float("nan")
+        else:
+            row["mean_charge_current_a"] = float("nan")
+            row["mean_discharge_current_a"] = float("nan")
+
         # --- Capacity retention ---
         nom_cap = config.nominal_capacity_ah
         if nom_cap and not pd.isna(q_dis):
@@ -465,8 +475,8 @@ def detect_pulse_segments(df: pd.DataFrame) -> pd.DataFrame:
 
     # Group by step boundaries using step_index if available, otherwise
     # detect boundaries by sign changes in current
-    if "step_index" in df.columns:
-        step_col = "step_index"
+    if "procedure_step" in df.columns:
+        step_col = "procedure_step"
     else:
         # Synthetic step groups based on segment transitions
         step_col = None
@@ -714,3 +724,184 @@ def _both_positive(a: float, b: float) -> bool:
         )
     except (TypeError, ValueError):
         return False
+
+
+def _sig_round(x: float, sig: int = 2) -> float:
+    """Round *x* to *sig* significant figures."""
+    if x == 0:
+        return 0.0
+    factor = 10 ** (sig - int(np.floor(np.log10(abs(x)))) - 1)
+    return round(x * factor) / factor
+
+
+# ---------------------------------------------------------------------------
+# 7. Test-region classification (fuzzy_guess)
+# ---------------------------------------------------------------------------
+
+
+def classify_test_regions(
+    cycle_summary: pd.DataFrame,
+    min_cycles_for_cycling_region: int = 10,
+    rate_change_tolerance: float = 0.15,
+) -> pd.DataFrame:
+    """
+    Heuristically classify each cycle into a test region.
+
+    Regions
+    -------
+    ``"formation"``
+        A short block of cycles at a single rate at the very start of the
+        dataset (before any multi-rate block).
+    ``"rate_test"``
+        Blocks where the applied C-rate changes frequently — used for rate
+        capability plots.
+    ``"cycling"``
+        A long block (>= *min_cycles_for_cycling_region*) at a single,
+        constant rate — used for capacity-retention and CE plots.
+    ``"unknown"``
+        Fallback when no current data is available.
+
+    Parameters
+    ----------
+    cycle_summary : pd.DataFrame
+        One row per cycle.  Must contain ``cycle_index`` and at least one of
+        ``mean_discharge_current_a`` or ``mean_charge_current_a``.
+    min_cycles_for_cycling_region : int
+        Minimum number of consecutive same-rate cycles to qualify as a
+        "cycling" region.
+    rate_change_tolerance : float
+        Not currently used; reserved for future tolerance-based grouping.
+
+    Returns
+    -------
+    pd.DataFrame
+        *cycle_summary* with a new ``test_region`` column added.
+    """
+    cs = cycle_summary.copy()
+
+    if cs.empty or "cycle_index" not in cs.columns:
+        if not cs.empty:
+            cs["test_region"] = "unknown"
+        return cs
+
+    cs = cs.sort_values("cycle_index").reset_index(drop=True)
+
+    # Pick representative current per cycle
+    if "mean_discharge_current_a" in cs.columns and cs["mean_discharge_current_a"].notna().any():
+        rep_current = cs["mean_discharge_current_a"]
+    elif "mean_charge_current_a" in cs.columns and cs["mean_charge_current_a"].notna().any():
+        rep_current = cs["mean_charge_current_a"]
+    else:
+        cs["test_region"] = "unknown"
+        logger.info("classify_test_regions: no current data; all cycles tagged 'unknown'.")
+        return cs
+
+    # Round to 2 sig figs for grouping
+    rounded = rep_current.apply(lambda x: _sig_round(x, 2) if pd.notna(x) and x > 0 else 0.0)
+    cs["_rounded_rate"] = rounded
+
+    # --- Run-length encoding ---
+    runs: list[dict] = []
+    if len(cs) > 0:
+        prev_rate = cs["_rounded_rate"].iloc[0]
+        run_start = 0
+        for i in range(1, len(cs)):
+            cur_rate = cs["_rounded_rate"].iloc[i]
+            if cur_rate != prev_rate:
+                runs.append({
+                    "rate": prev_rate,
+                    "start_idx": run_start,
+                    "end_idx": i - 1,
+                    "n_cycles": i - run_start,
+                })
+                prev_rate = cur_rate
+                run_start = i
+        runs.append({
+            "rate": prev_rate,
+            "start_idx": run_start,
+            "end_idx": len(cs) - 1,
+            "n_cycles": len(cs) - run_start,
+        })
+
+    # --- Tag each run ---
+    for run in runs:
+        if run["n_cycles"] >= min_cycles_for_cycling_region:
+            run["tag"] = "cycling"
+        else:
+            run["tag"] = "rate_test"
+
+    # --- Identify formation: leading single-rate short block before any
+    # multi-rate region ---
+    if runs:
+        # Count distinct rates across all rate_test runs
+        rate_test_rates = set()
+        first_non_formation_idx = 0
+        for j, run in enumerate(runs):
+            if run["tag"] == "rate_test":
+                rate_test_rates.add(run["rate"])
+
+        # A short block at the very start is "formation" if:
+        # 1. It's tagged rate_test (short)
+        # 2. It's a single rate
+        # 3. The NEXT runs contain multiple distinct rates
+        if (
+            runs[0]["tag"] == "rate_test"
+            and len(runs) > 1
+            and len(rate_test_rates) >= 3
+        ):
+            runs[0]["tag"] = "formation"
+
+    # --- Merge consecutive rate_test runs that together span >= 3 rates ---
+    # (already tagged; just verify they stay as rate_test)
+
+    # --- Write tags back to DataFrame ---
+    cs["test_region"] = "unknown"
+    for run in runs:
+        cs.loc[run["start_idx"]:run["end_idx"], "test_region"] = run["tag"]
+
+    cs = cs.drop(columns=["_rounded_rate"])
+
+    # Log summary
+    counts = cs["test_region"].value_counts().to_dict()
+    logger.info("classify_test_regions: %s", counts)
+    return cs
+
+
+def filter_cycles_by_region(
+    cycle_summary: pd.DataFrame,
+    preferred_region: str,
+) -> pd.DataFrame:
+    """
+    Return rows matching *preferred_region*, or all rows if none match.
+
+    Parameters
+    ----------
+    cycle_summary : pd.DataFrame
+        Must have a ``test_region`` column.
+    preferred_region : str
+        One of ``"formation"``, ``"rate_test"``, ``"cycling"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered (or original) DataFrame.
+    """
+    if "test_region" not in cycle_summary.columns:
+        return cycle_summary
+
+    filtered = cycle_summary[cycle_summary["test_region"] == preferred_region]
+    if filtered.empty:
+        logger.info(
+            "filter_cycles_by_region: no cycles in '%s' region; returning all %d cycles.",
+            preferred_region,
+            len(cycle_summary),
+        )
+        return cycle_summary
+
+    logger.info(
+        "filter_cycles_by_region: using %d/%d cycles from '%s' region.",
+        len(filtered),
+        len(cycle_summary),
+        preferred_region,
+    )
+    return filtered

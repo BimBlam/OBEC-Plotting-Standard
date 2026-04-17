@@ -116,6 +116,17 @@ def plot_capacity_retention(
 
     cs = cycle_summary.sort_values("cycle_index").copy()
 
+    # Prefer "cycling" region when test_region is available
+    region_filtered = False
+    if "test_region" in cs.columns:
+        cycling_cs = cs[cs["test_region"] == "cycling"]
+        if not cycling_cs.empty:
+            logger.info("plot_capacity_retention: using %d cycling cycles (of %d total).", len(cycling_cs), len(cs))
+            cs = cycling_cs
+            region_filtered = True
+        else:
+            logger.info("plot_capacity_retention: no cycling cycles found; using all %d cycles.", len(cs))
+
     has_retention = "capacity_retention_pct" in cs.columns
     if not has_retention:
         nom = getattr(config, "nominal_capacity_ah", None)
@@ -160,6 +171,9 @@ def plot_capacity_retention(
         ax.legend(fontsize=7, loc="best")
 
     _cr_warnings: list[str] = []
+    if region_filtered:
+        cmin, cmax = int(cs["cycle_index"].min()), int(cs["cycle_index"].max())
+        _cr_warnings.append(f"Showing cycling region: cycles {cmin}\u2013{cmax}")
     if has_retention and getattr(config, "nominal_capacity_ah", None) is None:
         _cr_warnings.append(
             "nominal_capacity_ah not set — retention % computed from first-cycle "
@@ -223,6 +237,18 @@ def plot_coulombic_efficiency(
         )
 
     cs = cycle_summary.sort_values("cycle_index").copy()
+
+    # Prefer "cycling" region when test_region is available
+    region_filtered = False
+    if "test_region" in cs.columns:
+        cycling_cs = cs[cs["test_region"] == "cycling"]
+        if not cycling_cs.empty:
+            logger.info("plot_coulombic_efficiency: using %d cycling cycles (of %d total).", len(cycling_cs), len(cs))
+            cs = cycling_cs
+            region_filtered = True
+        else:
+            logger.info("plot_coulombic_efficiency: no cycling cycles found; using all %d cycles.", len(cs))
+
     has_energy_eff = "energy_efficiency_pct" in cs.columns
 
     fig, ax = plt.subplots(figsize=(SINGLE_COL_WIDTH_IN, DEFAULT_HEIGHT_IN))
@@ -253,6 +279,11 @@ def plot_coulombic_efficiency(
     ax.set_title("Coulombic and Energy Efficiency vs. Cycle")
     ax.legend(fontsize=7, loc="best")
 
+    _ce_warnings: list[str] = []
+    if region_filtered:
+        cmin, cmax = int(cs["cycle_index"].min()), int(cs["cycle_index"].max())
+        _ce_warnings.append(f"Showing cycling region: cycles {cmin}\u2013{cmax}")
+    add_assumption_warning(fig, _ce_warnings)
     return save_figure(fig, output_dir, "coulombic_efficiency", formats=_get_formats(config))
 
 

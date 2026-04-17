@@ -65,10 +65,35 @@ ALIAS_TABLE: Dict[str, List[str]] = {
     ],
     # ------------------------------------------------------------------
     # Cycle / step indexing
+    #
+    # Maccor Series 4000 column semantics (confirmed from BattETL + firmware):
+    #
+    #   Cycle C  — Charge/discharge cycle counter.  Increments each time the
+    #              loop that contains a charge+discharge pair completes one
+    #              pass.  This is the number most people mean by "cycle number"
+    #              and is what we group by for per-cycle statistics.  Maps to
+    #              the canonical  cycle_index.
+    #
+    #   Cycle P  — Procedure-loop counter.  Counts how many times the outer
+    #              procedure loop (or the test procedure itself) has repeated.
+    #              In a simple test Cycle P == Cycle C; in nested-loop tests
+    #              (e.g. formation at C/10 then cycling at C/3) they differ.
+    #              Kept as  procedure_cycle  (metadata only; not used for
+    #              grouping).
+    #
+    #   Step     — Procedure step number within the test schedule (e.g.
+    #              Step 1=Rest, Step 2=Charge, Step 3=Discharge, Step 4=Loop).
+    #              This RESETS and LOOPS BACK to earlier numbers each cycle;
+    #              it is NOT a monotonic step index.  Kept as
+    #              procedure_step  (metadata only).
+    #
+    # Arbin uses different column names so there is no collision risk.
     # ------------------------------------------------------------------
     "cycle_index": [
         "cycle c",
         "cycle_c",
+        "cyc#",
+        "cyc #",
         "cycle",
         "cycle number",
         "cycle no",
@@ -76,23 +101,20 @@ ALIAS_TABLE: Dict[str, List[str]] = {
         "cycle index",
         "cyc",
     ],
-    # In Maccor exports "Cycle C" is the charge/discharge cycle counter
-    # and "Cycle P" is the procedure-step counter.  In Arbin the roles are
-    # reversed (Cycle P = overall cycle, Cycle C = step within cycle).
-    # We treat "Cycle C" as the primary cycle_index source (Maccor convention)
-    # and "Cycle P" as a fallback step_index candidate.  Users on Arbin will
-    # have their cycle mapped via "Cycle P" → cycle_index if they hit the
-    # duplicate-canonical guard and the first-seen wins.
-    # Separate, unambiguous step aliases are listed below.
-    "step_index": [
-        "cycle p",
-        "cycle_p",
+    # Maccor Step: schedule step number, loops back each cycle — metadata only.
+    # Arbin Step: same concept, same name.
+    "procedure_step": [
         "step",
         "step no",
         "step no.",
-        "step index",
         "step number",
         "stepno",
+        "step index",
+    ],
+    # Maccor Cycle P: procedure-loop counter — metadata only.
+    "procedure_cycle": [
+        "cycle p",
+        "cycle_p",
     ],
     "step_type": [
         "md",

@@ -64,7 +64,7 @@ logger = logging.getLogger("batteryplot.plots.qa")
 # Canonical column list (used by data_availability plot)
 # ---------------------------------------------------------------------------
 CANONICAL_COLUMNS = [
-    "elapsed_time_s", "step_time_s", "cycle_index", "step_index", "step_type",
+    "elapsed_time_s", "step_time_s", "cycle_index", "procedure_step", "step_type",
     "current_a", "voltage_v", "capacity_ah", "energy_wh", "power_w",
     "ac_impedance_ohm", "dcir_ohm", "resistance_ohm", "conductivity_s_cm",
     "temperature_c", "humidity_pct", "specific_capacity_ah_g",

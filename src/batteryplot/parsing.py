@@ -479,7 +479,7 @@ def _extract_metadata(filepath: Path, header_idx: int) -> Dict[str, str]:
 # have all-zero capacity.  We must never silently lose these columns.
 _NEVER_DROP_CANONICALS: set = {
     "current_a", "voltage_v", "capacity_ah", "energy_wh", "power_w",
-    "cycle_index", "step_index", "charge_capacity_ah", "discharge_capacity_ah",
+    "cycle_index", "procedure_step", "charge_capacity_ah", "discharge_capacity_ah",
     "charge_energy_wh", "discharge_energy_wh", "dcir_ohm", "ac_impedance_ohm",
     "resistance_ohm", "specific_capacity_ah_g", "temperature_c", "humidity_pct",
 }

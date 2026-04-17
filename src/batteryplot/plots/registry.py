@@ -92,7 +92,7 @@ PLOT_REGISTRY: List[PlotSpec] = [
     ),
     PlotSpec(
         key="rate_voltage_profiles",
-        title="Voltage Profiles at Representative C-rates",
+        title="Voltage vs. Capacity by Rate",
         family="rate_capability",
         required_columns=["voltage_v", "capacity_ah", "cycle_index"],
         optional_columns=["current_a"],
