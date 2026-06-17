@@ -198,8 +198,9 @@ def compute_cycle_summary(
         ``η_EE = E_dis / E_chg × 100 %``
 
     Capacity retention
-        ``CR = Q_dis / Q_nominal × 100 %`` (requires ``nominal_capacity_ah``
-        in *config*).
+        ``CR = Q_dis / Q_dis,first × 100 %`` where *Q_dis,first* is the
+        discharge capacity of the first cycle.  This is the standard
+        degradation metric (retention relative to initial capacity).
 
     Parameters
     ----------
@@ -286,16 +287,20 @@ def compute_cycle_summary(
             row["mean_charge_current_a"] = float("nan")
             row["mean_discharge_current_a"] = float("nan")
 
-        # --- Capacity retention ---
-        nom_cap = config.nominal_capacity_ah
-        if nom_cap and not pd.isna(q_dis):
-            row["capacity_retention_pct"] = q_dis / nom_cap * 100.0
-        else:
-            row["capacity_retention_pct"] = float("nan")
-
         rows.append(row)
 
     summary = pd.DataFrame(rows)
+
+    # --- Capacity retention ---
+    # Defined as discharge capacity at cycle n relative to the first cycle's
+    # discharge capacity (Q_n / Q_1 × 100).  This is the standard battery
+    # degradation metric.  If the first cycle lacks a valid value, the first
+    # available valid discharge capacity is used as the reference.
+    if "discharge_capacity_ah" in summary.columns:
+        q_dis = pd.to_numeric(summary["discharge_capacity_ah"], errors="coerce")
+        first_valid = q_dis.dropna().iloc[0] if q_dis.notna().any() else None
+        if first_valid and first_valid > 0:
+            summary["capacity_retention_pct"] = q_dis / first_valid * 100.0
     logger.info(
         "Cycle summary computed: %d cycles, columns: %s",
         len(summary),
