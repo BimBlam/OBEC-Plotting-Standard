@@ -2,7 +2,7 @@
 
 **Battery test data plotting and analysis toolkit**
 
-`batteryplot` reads CSV files produced by battery cyclers (Arbin, Neware, Maccor, and similar), automatically maps column names to canonical quantities, generates publication-quality SVG/PDF vector plots, and exports a cleaned multi-sheet Excel workbook — one output folder per cell.
+`batteryplot` reads battery-cycler export files (`.csv`, `.txt`, `.xls`, `.xlsx`) from Arbin, Neware, Maccor, and similar cyclers, automatically maps column names to canonical quantities, generates publication-quality SVG/PDF vector plots, and exports a cleaned multi-sheet Excel workbook — one output folder per cell.
 
 ---
 
@@ -19,15 +19,28 @@
 
 ---
 
-## Supported input assumptions
+## Supported input formats
 
-`batteryplot` expects one CSV file per cell. The file may contain:
+`batteryplot` accepts one file per cell with any of these extensions:
+
+- **`.csv`** — comma-separated; Arbin, Maccor CSV exports  
+- **`.txt`** — tab- or comma-separated; Maccor `.txt` exports  
+- **`.xls`** — Legacy Excel 97-2003 (Maccor `.xls` exports)  
+- **`.xlsx`** — Modern Excel exports
+
+All formats are normalised to the same internal representation before column mapping, time parsing, and numeric coercion are applied.
+
+### Input assumptions
+
+Each file may contain:
 
 - **0–N metadata rows** before the real data header (e.g. `Today's Date, 4/14/2026`). These are automatically detected and extracted.
 - **A single header row** whose columns can be mapped to known battery measurement quantities.
 - **Data rows** beginning immediately after the header.
 
-Confirmed working format: **Arbin WBCS-style CSV export** (the sample dataset). The parser will also attempt to handle Neware, Maccor, and other common formats through the alias table. If a column is unrecognised it is logged and ignored; parsing continues.
+Confirmed working formats: **Arbin WBCS-style CSV export** and **Maccor .xls export**. The parser will also attempt to handle Neware and other common formats through the alias table. If a column is unrecognised it is logged and ignored; parsing continues.
+
+> **Note for .xls files:** The `xlrd` package is required for legacy Excel 97-2003 (`.xls`) support. It is included in the default dependencies, but if you installed only `requirements.txt` manually, ensure `xlrd>=2.0` is present.
 
 Column mapping is case-insensitive and whitespace-tolerant. `Current (A)`, `current(A)`, `Cur (A)` all map to `current_a`.
 
@@ -215,7 +228,7 @@ output/
       current_voltage_overview.svg   ← QA overview of full test
       data_availability.svg          ← column completeness summary
     data/
-      processed_data.xlsx            ← 7-sheet Excel workbook
+      {cell_name}.xlsx               ← 7-sheet Excel workbook
       cleaned_timeseries.csv         ← canonical-column CSV
       cycle_summary.csv              ← one row per cycle
     logs/

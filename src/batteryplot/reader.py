@@ -359,11 +359,17 @@ def _load_excel_file(
     logger.info("Loading Excel file: %s", filepath.name)
 
     # openpyxl for xlsx; xlrd for xls (fallback)
+    ext = filepath.suffix.lower()
     try:
-        engine = "openpyxl" if filepath.suffix.lower() == ".xlsx" else "xlrd"
+        engine = "openpyxl" if ext == ".xlsx" else "xlrd"
         xl = pd.ExcelFile(filepath, engine=engine)
     except Exception as exc:
-        # xlrd may not be installed; try openpyxl as fallback for .xls
+        if ext == ".xls":
+            raise ImportError(
+                f"Cannot read legacy Excel .xls file '{filepath.name}'. "
+                "The 'xlrd' package is required but may not be installed. "
+                "Install it with: pip install xlrd>=2.0"
+            ) from exc
         logger.warning("Could not open with primary engine: %s. Trying openpyxl.", exc)
         xl = pd.ExcelFile(filepath, engine="openpyxl")
 

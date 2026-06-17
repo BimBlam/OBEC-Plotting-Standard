@@ -211,17 +211,22 @@ def cmd_inspect(
 
     from batteryplot.parsing import load_csv, build_analysis_df, detect_header_row
 
-    try:
-        header_row_idx, raw_cols = detect_header_row(
-            file,
-            max_scan=cfg.header_search_rows,
-            min_numeric_fraction=cfg.min_numeric_fraction,
-        )
-        typer.echo(f"Detected header at row index: {header_row_idx}")
-        typer.echo(f"Total columns in header:      {len(raw_cols)}")
-    except (ValueError, Exception) as e:
-        typer.echo(f"Header detection: {e}", err=True)
-        header_row_idx = 0
+    if file.suffix.lower() in (".csv", ".txt"):
+        try:
+            header_row_idx, raw_cols = detect_header_row(
+                file,
+                max_scan=cfg.header_search_rows,
+                min_numeric_fraction=cfg.min_numeric_fraction,
+            )
+            typer.echo(f"Detected header at row index: {header_row_idx}")
+            typer.echo(f"Total columns in header:      {len(raw_cols)}")
+        except (ValueError, Exception) as e:
+            typer.echo(f"Header detection: {e}", err=True)
+            header_row_idx = 0
+            raw_cols = []
+    else:
+        typer.echo("Header detection: delegated to Excel reader (binary format)")
+        header_row_idx = None
         raw_cols = []
 
     raw_df, column_map, metadata = load_csv(
@@ -278,6 +283,11 @@ def cmd_init_config(
         "--output", "-o",
         help="Destination path for the config file.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force", "-f",
+        help="Overwrite the file if it already exists.",
+    ),
 ) -> None:
     """
     Write a commented example configuration file (config.yaml).
@@ -285,6 +295,13 @@ def cmd_init_config(
     Edit the generated file to match your data and run `batteryplot run`.
     """
     from batteryplot.config import save_default_config
+
+    if output.exists() and not force:
+        typer.echo(
+            f"ERROR: {output} already exists. Use --force to overwrite.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
 
     # Use the full example config from the task spec rather than the
     # minimal default; save_default_config writes a fully commented YAML.
