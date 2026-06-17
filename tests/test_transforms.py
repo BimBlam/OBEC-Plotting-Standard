@@ -114,13 +114,22 @@ def test_compute_cycle_summary_coulombic_efficiency():
 
 
 def test_compute_cycle_summary_capacity_retention():
-    df = _make_df()
+    # Two cycles: cycle 1 = 0.015 Ah discharge, cycle 2 = 0.012 Ah discharge
+    df = pd.DataFrame({
+        "current_a": [0.5]*15 + [-0.5]*15 + [0.5]*15 + [-0.5]*15,
+        "voltage_v": [3.8]*60,
+        "capacity_ah": list(np.linspace(0, 0.015, 15)) + list(np.linspace(0.015, 0, 15))
+                     + list(np.linspace(0, 0.012, 15)) + list(np.linspace(0.012, 0, 15)),
+        "cycle_index": [1]*30 + [2]*30,
+        "elapsed_time_s": range(60),
+        "step_time_s": range(60),
+    })
     df = label_charge_discharge(df)
-    cfg = BatteryPlotConfig(nominal_capacity_ah=0.015)
-    summary = compute_cycle_summary(df, cfg)
-    cr = summary["capacity_retention_pct"].iloc[0]
-    assert not np.isnan(cr)
-    assert cr > 0
+    summary = compute_cycle_summary(df, default_config())
+    cr = summary["capacity_retention_pct"]
+    assert not np.isnan(cr.iloc[0])
+    assert cr.iloc[0] == pytest.approx(100.0)
+    assert cr.iloc[1] == pytest.approx(80.0)
 
 
 # ---------------------------------------------------------------------------

@@ -73,8 +73,10 @@ def plot_capacity_retention(
     """
     Plot discharge (and charge) capacity versus cycle number.
 
-    If capacity_retention_pct is available (or can be derived from
-    nominal_capacity_ah), it is overlaid on a secondary right y-axis.
+    If capacity_retention_pct is available (or can be derived from the
+    first cycle's discharge capacity), it is overlaid on a secondary right
+    y-axis.  Capacity retention is defined as
+    Q_dis(cycle n) / Q_dis(cycle 1) × 100 %.
 
     Parameters
     ----------
@@ -127,11 +129,16 @@ def plot_capacity_retention(
         else:
             logger.info("plot_capacity_retention: no cycling cycles found; using all %d cycles.", len(cs))
 
-    has_retention = "capacity_retention_pct" in cs.columns
+    has_retention = False
+    if "capacity_retention_pct" in cs.columns:
+        if pd.to_numeric(cs["capacity_retention_pct"], errors="coerce").notna().any():
+            has_retention = True
+
     if not has_retention:
-        nom = getattr(config, "nominal_capacity_ah", None)
-        if nom and nom > 0:
-            cs["capacity_retention_pct"] = cs["discharge_capacity_ah"] / nom * 100.0
+        q_dis = pd.to_numeric(cs["discharge_capacity_ah"], errors="coerce")
+        first_valid = q_dis.dropna().iloc[0] if q_dis.notna().any() else None
+        if first_valid and first_valid > 0:
+            cs["capacity_retention_pct"] = q_dis / first_valid * 100.0
             has_retention = True
 
     has_charge = "charge_capacity_ah" in cs.columns
@@ -174,11 +181,6 @@ def plot_capacity_retention(
     if region_filtered:
         cmin, cmax = int(cs["cycle_index"].min()), int(cs["cycle_index"].max())
         _cr_warnings.append(f"Showing cycling region: cycles {cmin}\u2013{cmax}")
-    if has_retention and getattr(config, "nominal_capacity_ah", None) is None:
-        _cr_warnings.append(
-            "nominal_capacity_ah not set — retention % computed from first-cycle "
-            "discharge capacity (relative, not absolute)"
-        )
     add_assumption_warning(fig, _cr_warnings)
     return save_figure(fig, output_dir, "capacity_retention", formats=_get_formats(config))
 
