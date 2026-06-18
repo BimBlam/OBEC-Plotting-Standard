@@ -141,6 +141,43 @@ batteryplot run
 
 ---
 
+## Streamlit GUI
+
+A web-based GUI is included for users who prefer a point-and-click interface over the CLI.
+
+### Launching the GUI
+
+Make sure the virtual environment is activated and the package is installed:
+
+```bash
+# Windows
+.venv\Scripts\activate
+
+# Linux / macOS
+source .venv/bin/activate
+```
+
+Then start the app:
+
+```bash
+streamlit run app.py
+```
+
+Your default browser will open automatically (usually at `http://localhost:8501`).
+
+### What the GUI provides
+
+- **Directory pickers** — type input / output folder paths and preview discovered files before running.
+- **Live config editing** — adjust cell parameters, plot families, output formats, theme, and parser settings in the sidebar.
+- **Load / Save config.yaml** — quickly switch between different project settings.
+- **One-click Run** — press **▶️ Run BatteryPlot** to process the whole batch.
+- **Batch summary table** — overview of every cell with cycles, data points, real plots, and placeholders.
+- **Per-cell expandable sections** — inspect individual results, view generated SVG thumbnails inline, download Excel workbooks and processing logs.
+
+> **Note:** The GUI uses the same underlying pipeline as the CLI, so all scientific assumptions, output formats, and directory structures are identical.
+
+---
+
 ## Command reference
 
 | Command | Description |
