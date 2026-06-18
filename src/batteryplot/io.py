@@ -303,29 +303,24 @@ def process_cell(
 
         # Helper: track generated vs placeholder
         # plot_availability may use 'plot_name' column (existing summaries) or 'key'
-        _avail_col = "key" if "key" in plot_availability.columns else "plot_name"
-        _title_col = "title" if "title" in plot_availability.columns else "plot_name"
+        def _is_placeholder(paths: List[Path]) -> bool:
+            """Detect whether a returned path list points to placeholder SVGs."""
+            for p in paths:
+                if p.suffix.lower() == ".svg" and p.exists():
+                    try:
+                        return "DATA ABSENT" in p.read_text(encoding="utf-8")
+                    except Exception:
+                        pass
+            return False
 
         def _count_results(paths: List[Path], spec_key: str) -> None:
             nonlocal plots_generated, plots_placeholder
             if not paths:
                 return
-            # Check if it's a real plot or placeholder by checking availability table
-            avail_row = plot_availability[plot_availability[_avail_col] == spec_key]
-            if avail_row.empty and "plot_name" in plot_availability.columns:
-                # Try matching by plot name (partial)
-                avail_row = plot_availability[
-                    plot_availability["plot_name"].str.contains(
-                        spec_key.replace("_", " "), case=False, na=False
-                    )
-                ]
-            is_real = (
-                avail_row["available"].any() if not avail_row.empty else False
-            )
-            if is_real:
-                plots_generated += 1
-            else:
+            if _is_placeholder(paths):
                 plots_placeholder += 1
+            else:
+                plots_generated += 1
 
         # Common positional call signature for all existing plot functions:
         # plot_fn(df, cycle_summary, pulse_df, config, output_dir) -> List[Path]
